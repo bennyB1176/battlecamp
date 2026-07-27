@@ -194,10 +194,13 @@ describe("world with units", () => {
     expect(unit.x).toBeGreaterThan(fromTiles(6));
   });
 
-  it("spawns a starting group by default", () => {
+  it("spawns a starting group for every player by default", () => {
     const world = createWorld({ seed: 7, width: 48, height: 48 });
     expect(world.entities.list.length).toBeGreaterThan(0);
-    expect(world.entities.list.every((entity) => entity.owner === 0)).toBe(true);
+    // Both sides open with a base now — the second player is no longer inert.
+    for (const player of world.players) {
+      expect(world.entities.list.some((entity) => entity.owner === player.id)).toBe(true);
+    }
   });
 
   it("places starting units on passable ground", () => {
