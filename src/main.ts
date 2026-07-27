@@ -32,10 +32,8 @@ import { canAfford, resourceOfTerrain } from "./sim/resources.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { formatCost } from "./ui/legend-data.js";
 import { createHud, type HudAction } from "./ui/hud.js";
+import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
-
-/** Available time multipliers. */
-const SPEEDS = [1, 2, 4] as const;
 
 /** Until multiplayer, the human is always player 0. */
 const LOCAL_PLAYER = 0;
@@ -105,7 +103,7 @@ function start(): void {
   let pendingCommands: Command[] = [];
 
   let paused = false;
-  let speed: number = SPEEDS[0];
+  let speed: number = SPEEDS[0]!;
 
   /** Which of my units are highlighted. Never enters the world. */
   const selection = createSelection();
@@ -137,14 +135,14 @@ function start(): void {
       paused = !paused;
       hud.setPaused(paused);
     },
-    onSetSpeed: (next) => {
-      speed = next;
-      // Choosing a speed is also the natural way to say "resume".
+    onCycleSpeed: () => {
+      speed = nextSpeed(speed);
+      // Reaching for the time control is also the natural way to say "resume".
       if (paused) {
         paused = false;
         hud.setPaused(false);
       }
-      hud.setSpeed(next);
+      hud.setSpeed(speed);
     },
     onCenter: () => centerOn(camera, world.grid.width / 2, world.grid.height / 2),
     onToggleSelectMode: () => {

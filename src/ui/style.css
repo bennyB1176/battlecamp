@@ -70,6 +70,26 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
+  /* Wraps rather than running off the edge. Collapsing the three speed buttons
+     into one bought the room back, but a row that can only ever fit is a row
+     that breaks again with the next button — and what fell off the screen last
+     time was the help button, which is what a new player reaches for first. */
+  flex-wrap: wrap;
+}
+
+/* Portrait on a phone is the tight case: trim the padding so the row keeps its
+   44 px touch targets instead of shrinking them. */
+@media (max-width: 480px) {
+  .ctrl {
+    padding: 0 8px;
+  }
+
+  /* Four pixels is what makes seven 46 px targets fit across a 375 px phone in
+     one row. The wrap above is still the guarantee; this is what keeps it from
+     being needed. */
+  #hud-bottom {
+    gap: 4px;
+  }
 }
 
 .pill {
@@ -101,6 +121,17 @@ body {
   cursor: pointer;
   backdrop-filter: blur(6px);
   touch-action: manipulation;
+}
+
+/* Fixed width, because the glyph grows with the speed: left to itself the
+   button gets wider on every tap, the row reflows, and the buttons jump out
+   from under the finger that is still tapping. The arrows shrink instead. */
+#btn-speed {
+  width: var(--control-size);
+  min-width: var(--control-size);
+  padding: 0;
+  font-size: 12px;
+  letter-spacing: -1px;
 }
 
 .ctrl:active {

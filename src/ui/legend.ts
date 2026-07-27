@@ -30,6 +30,7 @@ const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["⚔ dann Karte antippen", "Vorrücken und unterwegs kämpfen"],
   ["Gelände antippen (mit Auswahl)", "Hingehen"],
   ["⏸ oder Leertaste", "Pause — Befehle gehen auch pausiert"],
+  ["▶︎ antippen", "Tempo: 1× → 2× → 4× → wieder 1×"],
 ];
 
 /** Draw a unit silhouette into a small canvas, exactly as the game draws it. */

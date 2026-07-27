@@ -13,7 +13,8 @@
 
 export interface HudCallbacks {
   onTogglePause: () => void;
-  onSetSpeed: (speed: number) => void;
+  /** The player tapped the time control; step to the next speed. */
+  onCycleSpeed: () => void;
   onCenter: () => void;
   onToggleSelectMode: () => void;
   onToggleBuildMenu: () => void;
@@ -22,6 +23,7 @@ export interface HudCallbacks {
 }
 
 /** One button in the context panel. */
+import { SPEEDS, speedGlyph, speedLabel } from "./speed.js";
 import {
   RESOURCE_COLORS,
   RESOURCE_KINDS,
@@ -71,7 +73,7 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const buildButton = requireElement<HTMLButtonElement>("btn-build");
   const attackButton = requireElement<HTMLButtonElement>("btn-attack");
   const legendButton = requireElement<HTMLButtonElement>("btn-legend");
-  const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
+  const speedButton = requireElement<HTMLButtonElement>("btn-speed");
 
   // Built from the table rather than from markup: a new resource is one edit in
   // src/sim/resources.ts, and the bar, its swatch and the legend all follow.
@@ -109,11 +111,7 @@ export function createHud(callbacks: HudCallbacks): Hud {
   attackButton.addEventListener("click", callbacks.onToggleAttackMove);
   legendButton.addEventListener("click", callbacks.onToggleLegend);
 
-  for (const button of speedButtons) {
-    button.addEventListener("click", () => {
-      callbacks.onSetSpeed(Number(button.dataset.speed ?? "1"));
-    });
-  }
+  speedButton.addEventListener("click", callbacks.onCycleSpeed);
 
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space") {
@@ -138,9 +136,12 @@ export function createHud(callbacks: HudCallbacks): Hud {
       pauseButton.setAttribute("aria-label", paused ? "Fortsetzen" : "Pause");
     },
     setSpeed: (speed) => {
-      for (const button of speedButtons) {
-        button.classList.toggle("active", Number(button.dataset.speed ?? "1") === speed);
-      }
+      speedButton.textContent = speedGlyph(speed);
+      speedButton.setAttribute("aria-label", speedLabel(speed));
+      speedButton.title = speedLabel(speed);
+      // Lit only when time is running faster than normal, so the row is not
+      // permanently highlighted for the default state.
+      speedButton.classList.toggle("active", speed !== SPEEDS[0]);
     },
     setSelectMode: (active) => {
       selectButton.classList.toggle("active", active);
