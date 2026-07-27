@@ -107,7 +107,7 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    expect(finalHash).toBe("cf0f622c");
+    expect(finalHash).toBe("08de40ce");
   });
 });
 

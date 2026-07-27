@@ -15,13 +15,20 @@
 import { BuildingType, buildingDef } from "../content/buildings.js";
 import { UnitType } from "../content/units.js";
 import { applyCommand, type Command } from "./commands.js";
-import { addEntity, createEntityStore, type EntityStore, type PlayerId } from "./entities.js";
+import {
+  addEntity,
+  buildingOrigin,
+  createEntityStore,
+  type Entity,
+  type EntityStore,
+  type PlayerId,
+} from "./entities.js";
 import { updateCombat } from "./combat.js";
 import { placeBuildingAt, updateConstruction } from "./construction.js";
 import { updateEconomy } from "./economy.js";
 import { ONE, tileCenter } from "./fixed.js";
 import { generateMap } from "./mapgen.js";
-import { isBuildable, isPassable, type TileGrid } from "./grid.js";
+import { findLargestRegion, isBuildable, isPassable, type TileGrid } from "./grid.js";
 import { updateMovement } from "./movement.js";
 import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from "./pathing.js";
 import { updateProduction } from "./production.js";
@@ -126,9 +133,16 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
       createPlayer(1, STARTING_STOCK),
     ],
     entities: createEntityStore(),
-    // Eight goals is plenty while one player gives orders; M4's bots will want
-    // more, and the LRU will size up with them.
-    fields: createFlowFieldCache(8),
+    // Sized for how many *distinct* goals exist at once, which is what actually
+    // drives the cache. Every gathering worker walks to its own deposit tile, so
+    // a two-player match with full economies easily holds dozens of live goals.
+    //
+    // Getting this wrong is expensive in a way that hides: at eight entries the
+    // cache thrashed, every miss recomputed a full Dijkstra over the map, and
+    // the simulation went from 0.04 ms to 8 ms per tick — a 190x slowdown that
+    // looked like "the bots are slow" rather than "the cache is too small".
+    // Each field is about 20 KB on a 64x64 map, so this costs roughly a megabyte.
+    fields: createFlowFieldCache(48),
     // Cell size tracks the separation query radius — roughly two tiles.
     spatial: createSpatialHash(2 * ONE),
     terrainDirty: false,
@@ -146,52 +160,118 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
 }
 
 /**
- * Set up the opening position: a headquarters and a handful of workers on open
- * ground near the middle of the map.
+ * Set up the opening positions — one base per player.
  *
- * M8 replaces this with generated, symmetric start positions per player.
+ * Anchors come from a fixed table of normalised spots rather than trigonometry:
+ * `Math.cos` is not guaranteed bit-identical across engines, and where a base
+ * stands is simulation state, not decoration.
+ *
+ * From each anchor the search spirals outward for ground that will actually
+ * take a headquarters, so a lake or a ridge on a generated map moves a start
+ * rather than breaking it.
+ *
+ * M8 replaces this with a proper generator that guarantees mirrored terrain and
+ * equal resources; this version only guarantees the parts a match cannot do
+ * without.
  */
+const START_ANCHORS: Readonly<Record<number, ReadonlyArray<readonly [number, number]>>> = {
+  1: [[0.5, 0.5]],
+  // Opposite corners rather than opposite edges: the diagonal is the longest
+  // line on the map, which leaves the most room between the two economies.
+  2: [
+    [0.2, 0.2],
+    [0.8, 0.8],
+  ],
+  3: [
+    [0.2, 0.2],
+    [0.8, 0.25],
+    [0.5, 0.8],
+  ],
+  4: [
+    [0.2, 0.2],
+    [0.8, 0.2],
+    [0.2, 0.8],
+    [0.8, 0.8],
+  ],
+};
+
 function spawnStartingUnits(world: World, count: number): void {
-  const { grid } = world;
-  const centerX = Math.floor(grid.width / 2);
-  const centerY = Math.floor(grid.height / 2);
+  const anchors = START_ANCHORS[world.players.length] ?? START_ANCHORS[2]!;
 
-  // The headquarters goes down first, so the workers spawn around it rather
-  // than inside its footprint.
-  placeStartingHeadquarters(world, centerX, centerY);
+  // Work out which ground is the real map before placing anything. Generated
+  // maps have islands and pockets, and a base dropped into one is a match
+  // nobody can play — the armies never meet and a small pocket starves the
+  // economy besides.
+  const mainland = findLargestRegion(world.grid);
 
-  // Spiral outward from the centre until enough open tiles have been found, so
-  // a map with a lake in the middle still produces a valid start.
+  world.players.forEach((player, index) => {
+    const anchor = anchors[index % anchors.length]!;
+    spawnBase(
+      world,
+      player.id,
+      Math.floor(world.grid.width * anchor[0]),
+      Math.floor(world.grid.height * anchor[1]),
+      count,
+      mainland,
+    );
+  });
+}
+
+/** One headquarters plus its opening workers, around a given anchor tile. */
+function spawnBase(
+  world: World,
+  playerId: PlayerId,
+  anchorX: number,
+  anchorY: number,
+  count: number,
+  mainland: Uint8Array,
+): void {
+  const placed = placeStartingHeadquarters(world, playerId, anchorX, anchorY, mainland);
+  if (!placed) return;
+
+  const origin = buildingOrigin(placed);
+  const footprint = buildingDef(BuildingType.Headquarters).footprint;
+  const centerX = origin.tileX + Math.floor(footprint / 2);
+  const centerY = origin.tileY + Math.floor(footprint / 2);
+
+  // Spiral outward from the base for open tiles. `isPassable` already excludes
+  // the headquarters' own footprint, so nobody spawns inside a wall.
   const spots: Array<{ x: number; y: number }> = [];
-  const maxRadius = Math.max(grid.width, grid.height);
+  const maxRadius = Math.max(world.grid.width, world.grid.height);
 
-  for (let radius = 0; radius < maxRadius && spots.length < count; radius++) {
+  for (let radius = 1; radius < maxRadius && spots.length < count; radius++) {
     for (let dy = -radius; dy <= radius && spots.length < count; dy++) {
       for (let dx = -radius; dx <= radius && spots.length < count; dx++) {
-        // Only the newly added ring, not the filled square from previous rounds.
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
 
         const x = centerX + dx;
         const y = centerY + dy;
-        if (isPassable(grid, x, y)) spots.push({ x, y });
+        if (isPassable(world.grid, x, y)) spots.push({ x, y });
       }
     }
   }
 
   spots.forEach((spot, index) => {
     addEntity(world.entities, {
-      // Mostly workers: M2 is about getting an economy running, and an idle
-      // soldier contributes nothing to that. A scout comes along for scale.
+      // Mostly workers — an idle soldier contributes nothing to an opening.
+      // One scout comes along, because finding the other player early is worth
+      // more than one more trip to the woods.
       typeId: index === 0 ? UnitType.Scout : UnitType.Worker,
-      owner: 0,
+      owner: playerId,
       x: tileCenter(spot.x),
       y: tileCenter(spot.y),
     });
   });
 }
 
-/** Find open ground near the centre and drop the opening headquarters on it. */
-function placeStartingHeadquarters(world: World, centerX: number, centerY: number): void {
+/** Find ground near the anchor that will take a headquarters, and place it. */
+function placeStartingHeadquarters(
+  world: World,
+  playerId: PlayerId,
+  anchorX: number,
+  anchorY: number,
+  mainland: Uint8Array,
+): Entity | null {
   const footprint = buildingDef(BuildingType.Headquarters).footprint;
   const maxRadius = Math.max(world.grid.width, world.grid.height);
 
@@ -200,20 +280,43 @@ function placeStartingHeadquarters(world: World, centerX: number, centerY: numbe
       for (let dx = -radius; dx <= radius; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
 
-        const tileX = centerX + dx - Math.floor(footprint / 2);
-        const tileY = centerY + dy - Math.floor(footprint / 2);
+        const tileX = anchorX + dx - Math.floor(footprint / 2);
+        const tileY = anchorY + dy - Math.floor(footprint / 2);
         if (!isBuildable(world.grid, tileX, tileY, footprint)) continue;
+        // The site must touch the mainland, or this base is marooned.
+        if (!touchesRegion(world, mainland, tileX, tileY, footprint)) continue;
 
-        placeBuildingAt(world, 0, BuildingType.Headquarters, tileX, tileY, {
+        const placed = placeBuildingAt(world, playerId, BuildingType.Headquarters, tileX, tileY, {
           // Nothing exists yet to pay for it or to build within reach of.
           free: true,
           finished: true,
           ignoreRadius: true,
         });
-        return;
+        if (placed) return placed;
       }
     }
   }
+
+  return null;
+}
+
+/** Does any tile ringing this footprint belong to the given region? */
+function touchesRegion(
+  world: World,
+  region: Uint8Array,
+  tileX: number,
+  tileY: number,
+  footprint: number,
+): boolean {
+  for (let dy = -1; dy <= footprint; dy++) {
+    for (let dx = -1; dx <= footprint; dx++) {
+      const x = tileX + dx;
+      const y = tileY + dy;
+      if (x < 0 || y < 0 || x >= world.grid.width || y >= world.grid.height) continue;
+      if (region[y * world.grid.width + x] === 1) return true;
+    }
+  }
+  return false;
 }
 
 /**

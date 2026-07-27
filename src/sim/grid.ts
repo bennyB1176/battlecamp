@@ -101,6 +101,81 @@ export function moveCostAt(grid: TileGrid, x: number, y: number): number {
 }
 
 /**
+ * Mark every tile belonging to the map's largest connected walkable region.
+ *
+ * Generated maps produce islands and pockets. A start position dropped into one
+ * is a match nobody can play: the two armies never meet, and on a small enough
+ * pocket the economy suffocates too. Rather than hoping the anchors miss them,
+ * start placement asks this which ground is the real map.
+ *
+ * One breadth-first pass over the grid, four-connected — the same connectivity
+ * a unit actually has, since diagonal moves need both orthogonal neighbours
+ * open anyway.
+ */
+export function findLargestRegion(grid: TileGrid): Uint8Array {
+  const size = grid.width * grid.height;
+  const component = new Int32Array(size).fill(-1);
+  const queue = new Int32Array(size);
+
+  let bestId = -1;
+  let bestSize = 0;
+  let nextId = 0;
+
+  for (let start = 0; start < size; start++) {
+    if (component[start] !== -1) continue;
+
+    const startX = start % grid.width;
+    const startY = (start - startX) / grid.width;
+    if (!isPassable(grid, startX, startY)) continue;
+
+    const id = nextId++;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    component[start] = id;
+    let count = 0;
+
+    while (head < tail) {
+      const index = queue[head++]!;
+      count++;
+
+      const x = index % grid.width;
+      const y = (index - x) / grid.width;
+
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!isInside(grid, nx, ny)) continue;
+
+        const neighbour = ny * grid.width + nx;
+        if (component[neighbour] !== -1) continue;
+        if (!isPassable(grid, nx, ny)) continue;
+
+        component[neighbour] = id;
+        queue[tail++] = neighbour;
+      }
+    }
+
+    if (count > bestSize) {
+      bestSize = count;
+      bestId = id;
+    }
+  }
+
+  const mask = new Uint8Array(size);
+  if (bestId === -1) return mask;
+  for (let index = 0; index < size; index++) {
+    if (component[index] === bestId) mask[index] = 1;
+  }
+  return mask;
+}
+
+/**
  * Can a building of the given footprint be placed with its top-left corner here?
  *
  * Terrain-only check. The build-radius rule ("must touch your own base") and
