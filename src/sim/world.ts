@@ -31,8 +31,13 @@ import { generateMap } from "./mapgen.js";
 import {
   findLargestRegion,
   findRegionFrom,
+  isBlocked,
   isBuildable,
+  isInside,
   isPassable,
+  setTerrain,
+  terrainAt,
+  Terrain,
   type TileGrid,
 } from "./grid.js";
 import { updateMovement } from "./movement.js";
@@ -40,7 +45,16 @@ import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from 
 import { updateProduction } from "./production.js";
 import { updateFood } from "./food.js";
 import { updateRefineries } from "./refinery.js";
-import { createPlayer, Resource, stockDeposits, type Player } from "./resources.js";
+import {
+  createPlayer,
+  RAW_KINDS,
+  Resource,
+  resourceOfTerrain,
+  stockDeposits,
+  terrainOfResource,
+  type Player,
+  type ResourceKind,
+} from "./resources.js";
 import { updateVictory } from "./victory.js";
 import { createRng, type Rng } from "./rng.js";
 import { createSpatialHash, type SpatialHash } from "./spatial.js";
@@ -228,8 +242,97 @@ function spawnStartingUnits(world: World, count: number): void {
     // map, so the mask computed a moment ago may already be out of date; and
     // "the largest region" is only the right question for the first player —
     // after that the right question is "the region the others are in".
-    if (home) shared = findRegionFrom(world.grid, home.tileX, home.tileY);
+    if (home) {
+      seedNearbyResources(world, home);
+      shared = findRegionFrom(world.grid, home.tileX, home.tileY);
+    }
   });
+}
+
+/**
+ * How far from home a seam still counts as this player's.
+ *
+ * Beyond it the round trip costs more than the load is worth, and the answer
+ * stops being "walk further" and becomes "build a depot out there" — which is a
+ * decision, not an opening.
+ */
+const START_REACH_TILES = 12;
+
+/** Tiles of a resource a start needs before it counts as supplied. */
+const START_TILES_WANTED = 6;
+
+/**
+ * Make sure a start has all three raw resources within walking distance.
+ *
+ * The generator scatters seams as a handful of clusters, and stone got the
+ * fewest: on a sixty-four square map it produced ten to twenty-eight tiles,
+ * against a thousand of forest. Nearly every building in the game costs stone,
+ * so most starts simply could not build one — the bots banked thousands of ore
+ * they could never spend, never raised a second refinery, and looked broken for
+ * an hour before the fault turned out to be in the map rather than in them.
+ *
+ * M8's generator will do this properly, with mirrored terrain and matched
+ * seams. This guarantees only the part a match cannot do without: that the cost
+ * tables describe a game the player can actually play.
+ */
+function seedNearbyResources(world: World, home: { tileX: number; tileY: number }): void {
+  for (const kind of RAW_KINDS) {
+    if (countNearby(world, home, kind) >= START_TILES_WANTED) continue;
+    plantSeam(world, home, kind);
+  }
+}
+
+function countNearby(
+  world: World,
+  home: { tileX: number; tileY: number },
+  kind: ResourceKind,
+): number {
+  let found = 0;
+  for (let dy = -START_REACH_TILES; dy <= START_REACH_TILES; dy++) {
+    for (let dx = -START_REACH_TILES; dx <= START_REACH_TILES; dx++) {
+      const tileX = home.tileX + dx;
+      const tileY = home.tileY + dy;
+      if (resourceOfTerrain(terrainAt(world.grid, tileX, tileY)) !== kind) continue;
+      if ((world.deposits[tileY * world.grid.width + tileX] ?? 0) <= 0) continue;
+      found++;
+    }
+  }
+  return found;
+}
+
+/**
+ * Lay a small seam on open ground near the base, on the ring the workers can
+ * reach but far enough out that it does not sit under the next building.
+ */
+function plantSeam(
+  world: World,
+  home: { tileX: number; tileY: number },
+  kind: ResourceKind,
+): void {
+  const terrain = terrainOfResource(kind);
+  let planted = 0;
+
+  for (let radius = 5; radius <= START_REACH_TILES && planted < START_TILES_WANTED; radius++) {
+    for (let dy = -radius; dy <= radius && planted < START_TILES_WANTED; dy++) {
+      for (let dx = -radius; dx <= radius && planted < START_TILES_WANTED; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+
+        const tileX = home.tileX + dx;
+        const tileY = home.tileY + dy;
+        if (!isInside(world.grid, tileX, tileY)) continue;
+        // Only plain ground: a seam must not swallow water, rock, or another
+        // resource, and never the ground a building already stands on.
+        const existing = terrainAt(world.grid, tileX, tileY);
+        if (existing !== Terrain.Grass && existing !== Terrain.Sand) continue;
+        if (isBlocked(world.grid, tileX, tileY)) continue;
+
+        setTerrain(world.grid, tileX, tileY, terrain);
+        planted++;
+      }
+    }
+  }
+
+  if (planted > 0) stockDeposits(world);
 }
 
 /**

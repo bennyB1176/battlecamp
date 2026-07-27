@@ -6,9 +6,10 @@ Handy spielbar, Strategie vor Fingerfertigkeit.
 
 **▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
 
-> Status: **M4** — es gibt echte Gegner. Drei Schwierigkeitsgrade, die sich messbar
-> unterscheiden, und ein Headless-Match-Runner, der ganze Partien ohne Fenster
-> durchrechnet: `npm run match -- --seeds 8 --bots leicht,schwer`.
+> Status: **M5** — die Wirtschaft stellt jetzt Fragen. Veredelungsketten (Holz → Bretter,
+> Erz → Stahl), Nahrung als laufender Unterhalt mit Attrition, und Strom, der im Radius
+> wirkt. Dazu drei Bot-Schwierigkeitsgrade, die sich messbar unterscheiden, und ein
+> Headless-Match-Runner: `npm run match -- --seeds 8 --bots leicht,schwer`.
 >
 > Den Gegner wählt man vorerst über die Adresse — `?gegner=leicht`, `?gegner=normal`
 > (Standard) oder `?gegner=schwer`. Ein richtiges Menü kommt mit dem
@@ -180,8 +181,12 @@ Vorkommen und Lager, Veredelungsgebäude ziehen aus einem globalen Pool.
 
 Zwei Regeln erzwingen echte Wirtschaftsentscheidungen statt Dauer-Rush:
 
-- **Nahrung ist laufender Unterhalt**, nicht nur Baukosten — eine Armee ohne Basis verhungert
-- **Energie wirkt im Radius** — Basis-Layout wird zur Entscheidung, Kraftwerke zu lohnenden Zielen
+- **Nahrung ist laufender Unterhalt**, nicht nur Baukosten — und zwar eine *Obergrenze*, kein Vorrat.
+  Reicht sie nicht, verliert die ganze Armee langsam Leben (nie bis zum Tod). Eine Armee, für die man
+  die Wirtschaft leergeräumt hat, gewinnt den Kampf, den sie anfängt, und zerfällt auf dem Rückweg.
+- **Energie wirkt im Radius** — das Hauptquartier versorgt seinen eigenen Hof, alles weiter draußen
+  arbeitet halb so schnell, bis ein Kraftwerk es abdeckt. Nichts schaltet sich ganz ab: langsam,
+  nicht tot. Damit wird Basis-Layout zur Entscheidung und das Kraftwerk zum lohnendsten Ziel.
 
 **Kampf** — Tiefe über eine Schadens-/Rüstungsmatrix (normal / explosiv / durchschlagend gegen
 leicht / mittel / schwer / Gebäude) statt über Grafik. Das Konter-Dreieck schließt sich:
@@ -216,7 +221,7 @@ rotationssymmetrischen Startpositionen.
 | **M2** | Wirtschaft & Bau | ✅ Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
 | **M3** | Produktion & Kampf | ✅ Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
 | **M4** | Echte Bots | ✅ Bot vs. Bot läuft 20 Minuten stabil und entscheidet sich, Schwierigkeitsgrade unterscheiden sich messbar |
-| M5 | Ketten, Nahrung, Energie | Erster Balance-Pass über Massen-Headless-Matches |
+| **M5** | Ketten, Nahrung, Energie | ✅ Alle drei Systeme werden in echten Partien genutzt, Balance-Reihenfolge hält |
 | M6 | Fog of War | Aufklärung zählt, Bots respektieren den Nebel |
 | M7 | Völker 2 & 3 | Klan und Brut spielbar |
 | M8 | Welten | Prozedurale Karten, vier Biome, Skirmish-Setup |

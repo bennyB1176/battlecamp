@@ -19,7 +19,7 @@ import { damageAgainst, type Weapon } from "../content/combat.js";
 import { buildingDefOf, isBuilding, isComplete, isUnit, unitDefOf } from "./entities.js";
 import type { Entity, EntityId } from "./entities.js";
 import { getEntity, removeEntity } from "./entities.js";
-import { distSq, isqrt } from "./fixed.js";
+import { distSq, isqrt, toTileIndex } from "./fixed.js";
 import { setBlocked } from "./grid.js";
 import { snapGoalToReachable } from "./movement.js";
 import { buildingTiles } from "./entities.js";
@@ -127,7 +127,16 @@ function stepFighter(world: World, entity: Entity, weapon: Weapon): void {
   // Walk to open ground beside the target, not into it. A building's centre is
   // ground it blocks, so heading straight for it is an unreachable order — the
   // attacker would stop dead a few tiles short and never fire a shot.
-  const approach = snapGoalToReachable(world.grid, target.x, target.y);
+  //
+  // Measured from the attacker, which is the whole difference between working
+  // and not. Without it the snap can land in a pocket on the far side of the
+  // target: movement refuses a goal it cannot route to, the unit stands still
+  // four tiles short, and the building sits at full health while forty-four
+  // soldiers mill around it. A twenty-minute match ended that way.
+  const approach = snapGoalToReachable(world.grid, target.x, target.y, {
+    tileX: toTileIndex(entity.x),
+    tileY: toTileIndex(entity.y),
+  });
   entity.goalX = approach.x;
   entity.goalY = approach.y;
   entity.blockedTicks = 0;
