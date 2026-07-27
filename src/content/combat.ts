@@ -31,6 +31,9 @@ export const Armor = {
 
 export type ArmorId = (typeof Armor)[keyof typeof Armor];
 
+/** Explicit order, so anything iterating armour classes stays predictable. */
+export const ARMOR_KINDS: readonly ArmorId[] = [Armor.Light, Armor.Medium, Armor.Heavy, Armor.Building];
+
 export const DAMAGE_TYPE_NAMES: Readonly<Record<DamageTypeId, string>> = {
   [DamageType.Normal]: "normal",
   [DamageType.Explosive]: "explosiv",

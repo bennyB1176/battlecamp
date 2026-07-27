@@ -18,6 +18,7 @@ export interface HudCallbacks {
   onToggleSelectMode: () => void;
   onToggleBuildMenu: () => void;
   onToggleAttackMove: () => void;
+  onToggleLegend: () => void;
 }
 
 /** One button in the context panel. */
@@ -59,6 +60,7 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const selectButton = requireElement<HTMLButtonElement>("btn-select");
   const buildButton = requireElement<HTMLButtonElement>("btn-build");
   const attackButton = requireElement<HTMLButtonElement>("btn-attack");
+  const legendButton = requireElement<HTMLButtonElement>("btn-legend");
   const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
 
   const wood = requireElement<HTMLSpanElement>("res-wood");
@@ -74,6 +76,7 @@ export function createHud(callbacks: HudCallbacks): Hud {
   selectButton.addEventListener("click", callbacks.onToggleSelectMode);
   buildButton.addEventListener("click", callbacks.onToggleBuildMenu);
   attackButton.addEventListener("click", callbacks.onToggleAttackMove);
+  legendButton.addEventListener("click", callbacks.onToggleLegend);
 
   for (const button of speedButtons) {
     button.addEventListener("click", () => {

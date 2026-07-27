@@ -200,8 +200,14 @@ function updateFacing(entity: Entity): number {
   return facings.get(entity.id) ?? 0;
 }
 
-/** Silhouettes, drawn facing +x so the caller can simply rotate. */
-function traceUnitShape(ctx: CanvasRenderingContext2D, shape: string, radius: number): void {
+/**
+ * Silhouettes, drawn facing +x so the caller can simply rotate.
+ *
+ * Exported because the in-game legend draws its icons with this exact
+ * function. A legend that redraws the shapes by hand is a legend that will
+ * quietly stop matching the game.
+ */
+export function traceUnitShape(ctx: CanvasRenderingContext2D, shape: string, radius: number): void {
   ctx.beginPath();
 
   switch (shape) {
@@ -228,28 +234,35 @@ function traceUnitShape(ctx: CanvasRenderingContext2D, shape: string, radius: nu
       return;
     }
     case UnitShape.Wedge: {
-      // Blunt and heavy-set: reads as someone hauling something explosive.
-      const w = radius * 1.1;
+      // A chevron: short, fat, and notched at the back. The concave rear is the
+      // point — a merely "blunt" shape was indistinguishable from the vehicle's
+      // at icon size, which defeats the whole purpose of having silhouettes.
+      const w = radius * 1.2;
       const h = radius * 1.15;
-      ctx.moveTo(w * 0.55, -h * 0.75);
-      ctx.lineTo(w, 0);
-      ctx.lineTo(w * 0.55, h * 0.75);
-      ctx.lineTo(-w * 0.9, h * 0.85);
-      ctx.lineTo(-w * 0.9, -h * 0.85);
+      ctx.moveTo(w, 0);
+      ctx.lineTo(-w * 0.35, h);
+      ctx.lineTo(-w, h * 0.75);
+      ctx.lineTo(-w * 0.3, 0);
+      ctx.lineTo(-w, -h * 0.75);
+      ctx.lineTo(-w * 0.35, -h);
       ctx.closePath();
       return;
     }
     case UnitShape.Hull: {
-      // Angular, symmetric, with a cut-off nose: reads as a machine, not a
-      // person — which is the whole point of a vehicle silhouette.
-      const w = radius * 1.25;
-      const h = radius * 0.95;
-      ctx.moveTo(w * 0.6, -h);
-      ctx.lineTo(w, -h * 0.45);
-      ctx.lineTo(w, h * 0.45);
-      ctx.lineTo(w * 0.6, h);
-      ctx.lineTo(-w, h);
-      ctx.lineTo(-w, -h);
+      // Long, rectangular, corners clipped. The elongation does the work:
+      // nothing else in the roster is twice as long as it is wide, so it reads
+      // as a machine at any size.
+      const w = radius * 1.55;
+      const h = radius * 0.7;
+      const cut = h * 0.55;
+      ctx.moveTo(w - cut, -h);
+      ctx.lineTo(w, -h + cut);
+      ctx.lineTo(w, h - cut);
+      ctx.lineTo(w - cut, h);
+      ctx.lineTo(-w + cut, h);
+      ctx.lineTo(-w, h - cut);
+      ctx.lineTo(-w, -h + cut);
+      ctx.lineTo(-w + cut, -h);
       ctx.closePath();
       return;
     }

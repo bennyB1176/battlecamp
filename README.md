@@ -45,6 +45,7 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 | ⚔ dann tippen | Angriffsbewegung — engagiert, was unterwegs auftaucht |
 | 🔨 dann Gebäude wählen | Bauen — erlaubte Fläche wird markiert |
 | ⬚ dann ziehen | Auswahlrahmen über mehrere Einheiten |
+| ? | Legende und Anleitung |
 | Mausrad | Zoomen (Desktop) |
 | Leertaste / ⏸ | Pause |
 | 1× / 2× / 4× | Zeitraffer |
@@ -175,6 +176,14 @@ Zwei Regeln erzwingen echte Wirtschaftsentscheidungen statt Dauer-Rush:
 leicht / mittel / schwer / Gebäude) statt über Grafik. Das Konter-Dreieck schließt sich:
 Panzerwagen zerreißen Infanterie, Grenadiere knacken Panzerwagen, Infanterie schlägt Grenadiere.
 Kein Typ ist die Antwort auf alles — deshalb lohnt sich Aufklärung.
+
+**Legende** — der `?`-Knopf öffnet eine Anleitung im Spiel: Ziel, Bedienung, Rohstoffe, alle
+Einheiten und Gebäude mit Werten, das Konter-Dreieck. Sie zeichnet ihre Symbole mit *demselben*
+Code wie der Renderer und zieht jede Zahl aus den Content-Tabellen, kann also nicht veralten —
+eine neue Einheit taucht von allein auf, eine geänderte Schadensmatrix schreibt die Konter-Tabelle
+um. Genau deshalb steckt sie im Spiel und nicht in einem Wiki: handgepflegte Doku zu einem System,
+das noch im Balancing ist, stimmt nach einer Woche nicht mehr — und ist dann schlimmer als keine,
+weil man ihr glaubt.
 
 **Darstellung** — Farbe sagt *wessen*, Form sagt *was*. Farbe ist für den Spieler reserviert und
 wird nie für Einheitentypen ausgegeben; andersherum wären der eigene und der gegnerische Soldat

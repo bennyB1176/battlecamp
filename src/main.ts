@@ -28,6 +28,7 @@ import { terrainAt } from "./sim/grid.js";
 import { Resource, resourceOfTerrain, RESOURCE_NAMES, type Cost } from "./sim/resources.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { createHud, type HudAction } from "./ui/hud.js";
+import { createLegend } from "./ui/legend.js";
 
 /** Available time multipliers. */
 const SPEEDS = [1, 2, 4] as const;
@@ -125,6 +126,10 @@ function start(): void {
     noticeUntilTick = world.tick + NOTICE_TICKS;
   };
 
+  // Built once, filled on open. The help sheet is the one place a new player
+  // can find out what the silhouettes mean without having to guess.
+  const legend = createLegend();
+
   const hud = createHud({
     onTogglePause: () => {
       paused = !paused;
@@ -159,6 +164,7 @@ function start(): void {
       }
       hud.setBuildMode(buildMenuOpen);
     },
+    onToggleLegend: () => legend.toggle(),
     onToggleAttackMove: () => {
       attackMoveArmed = !attackMoveArmed;
       // The modes are mutually exclusive: a tap has to mean exactly one thing.
@@ -499,6 +505,15 @@ function start(): void {
 
   const frame = (now: number): void => {
     requestAnimationFrame(frame);
+
+    // The legend covers the whole screen. Carrying on behind it would burn
+    // battery drawing a map nobody can see — and, worse, let the player be
+    // attacked while reading the manual. The player's own pause setting is left
+    // alone, so closing the sheet returns things exactly as they were.
+    if (legend.isOpen()) {
+      previousFrameTime = now;
+      return;
+    }
 
     const delta = Math.min(now - previousFrameTime, MAX_FRAME_DELTA_MS);
     previousFrameTime = now;
