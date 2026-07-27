@@ -4,6 +4,8 @@ Ein 2D-Echtzeit-Strategiespiel zwischen **Command & Conquer** und **Die Siedler*
 **StarCraft**. Basis aufbauen, Wirtschaft hochziehen, Armee produzieren, Gegner zerstören — auf dem
 Handy spielbar, Strategie vor Fingerfertigkeit.
 
+**▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
+
 > Status: **M1** — Einheiten laufen. Auswahl per Tippen und Rahmen, Bewegungsbefehle,
 > Flow-Field-Pathfinding, Kollisionsvermeidung. Wirtschaft und Bauen kommen in M2.
 
