@@ -11,6 +11,7 @@ export interface HudCallbacks {
   onTogglePause: () => void;
   onSetSpeed: (speed: number) => void;
   onCenter: () => void;
+  onToggleSelectMode: () => void;
 }
 
 export interface Hud {
@@ -18,6 +19,7 @@ export interface Hud {
   setStats: (text: string) => void;
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: number) => void;
+  setSelectMode: (active: boolean) => void;
 }
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -31,10 +33,12 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const stats = requireElement<HTMLDivElement>("stats");
   const pauseButton = requireElement<HTMLButtonElement>("btn-pause");
   const centerButton = requireElement<HTMLButtonElement>("btn-center");
+  const selectButton = requireElement<HTMLButtonElement>("btn-select");
   const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
 
   pauseButton.addEventListener("click", callbacks.onTogglePause);
   centerButton.addEventListener("click", callbacks.onCenter);
+  selectButton.addEventListener("click", callbacks.onToggleSelectMode);
 
   for (const button of speedButtons) {
     button.addEventListener("click", () => {
@@ -66,6 +70,9 @@ export function createHud(callbacks: HudCallbacks): Hud {
       for (const button of speedButtons) {
         button.classList.toggle("active", Number(button.dataset.speed ?? "1") === speed);
       }
+    },
+    setSelectMode: (active) => {
+      selectButton.classList.toggle("active", active);
     },
   };
 }

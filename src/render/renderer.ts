@@ -12,9 +12,11 @@
  */
 
 import type { Camera } from "../input/camera.js";
-import { resizeCamera, visibleTileBounds, worldToScreen } from "../input/camera.js";
+import { resizeCamera, visibleTileBounds, worldToScreen, type WorldBox } from "../input/camera.js";
+import type { Selection } from "../input/selection.js";
 import { PING_LIFETIME_TICKS, type Command } from "../sim/commands.js";
 import type { World } from "../sim/world.js";
+import { drawEntities, drawOrders, drawSelectionBox } from "./entities.js";
 import { createTerrainCache, drawTerrain, type TerrainCache } from "./terrain.js";
 
 /** Below this zoom the tile grid becomes visual noise, so we stop drawing it. */
@@ -68,20 +70,21 @@ export function resizeRenderer(renderer: Renderer, camera: Camera): void {
   resizeCamera(camera, cssWidth, cssHeight);
 }
 
-/**
- * @param alpha   Progress between the last tick and the next, in [0, 1).
- * @param pending Commands queued but not yet applied — while the game is
- *                paused these can sit around for a while, and drawing them
- *                faintly is what keeps the UI feeling responsive without
- *                letting the renderer touch world state.
- */
-export function renderFrame(
-  renderer: Renderer,
-  world: World,
-  camera: Camera,
-  alpha: number,
-  pending: readonly Command[] = [],
-): void {
+export interface FrameInput {
+  /** Progress between the last tick and the next, in [0, 1). */
+  readonly alpha: number;
+  /**
+   * Commands queued but not yet applied — while the game is paused these can
+   * sit around for a while, and drawing them faintly is what keeps the UI
+   * feeling responsive without letting the renderer touch world state.
+   */
+  readonly pending: readonly Command[];
+  readonly selection: Selection;
+  /** The rubber-band rectangle currently being dragged, if any. */
+  readonly selectionBox: WorldBox | null;
+}
+
+export function renderFrame(renderer: Renderer, world: World, camera: Camera, input: FrameInput): void {
   const started = performance.now();
   const { ctx } = renderer;
 
@@ -91,8 +94,11 @@ export function renderFrame(
   drawTerrain(ctx, renderer.terrain, camera, world.grid);
   drawGridLines(ctx, camera);
   drawMapBorder(ctx, camera, world);
-  drawMarkers(ctx, world, camera, alpha);
-  drawPendingCommands(ctx, camera, pending);
+  drawMarkers(ctx, world, camera, input.alpha);
+  drawPendingCommands(ctx, camera, input.pending);
+  drawOrders(ctx, world, camera, input.selection);
+  drawEntities(ctx, world, camera, input.selection, input.alpha);
+  drawSelectionBox(ctx, camera, input.selectionBox);
 
   renderer.lastFrameMs = performance.now() - started;
 }

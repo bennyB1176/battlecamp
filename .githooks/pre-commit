@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#
+# Pre-commit secret scan. Opt in with:  npm run hooks:install
+#
+# Catches a leaked key *before* it enters the history, which is the only point
+# at which the fix is free. Once committed and pushed, the only correct response
+# is to rotate the secret — rewriting history does not un-share it.
+#
+# Only staged changes are scanned, so this stays fast enough to run on every
+# commit. CI still scans the full history as the real backstop.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+GITLEAKS_VERSION="8.30.1"
+BINARY="${REPO_ROOT}/.cache/gitleaks-${GITLEAKS_VERSION}/gitleaks"
+
+if command -v gitleaks >/dev/null 2>&1; then
+  BINARY="$(command -v gitleaks)"
+elif [[ ! -x "${BINARY}" ]]; then
+  echo "pre-commit: gitleaks fehlt — hole es einmalig..."
+  # Reuses the pinned, checksum-verified download path.
+  bash "${REPO_ROOT}/scripts/scan-secrets.sh" >/dev/null
+fi
+
+if ! "${BINARY}" git "${REPO_ROOT}" --staged --redact --exit-code 1; then
+  cat >&2 <<'MESSAGE'
+
+pre-commit: Commit abgebrochen — möglicher Secret in den gestageten Änderungen.
+
+Falscher Alarm? Markiere die Zeile mit  # gitleaks:allow  oder ergänze eine
+gezielte Regel in .gitleaks.toml. Notfalls: git commit --no-verify
+MESSAGE
+  exit 1
+fi

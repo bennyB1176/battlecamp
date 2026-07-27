@@ -42,6 +42,22 @@ export function hashWorld(world: World): number {
     h = mix(h, world.grid.tiles[i]!);
   }
 
+  // Entities are hashed in list order, which the store guarantees is
+  // deterministic. prevX/prevY are deliberately omitted: they are cosmetic
+  // interpolation state derived from last tick's position, not simulation truth.
+  h = mixInt32(h, world.entities.list.length);
+  for (const entity of world.entities.list) {
+    h = mixInt32(h, entity.id);
+    h = mixInt32(h, entity.typeId);
+    h = mixInt32(h, entity.owner);
+    h = mixInt32(h, entity.x);
+    h = mixInt32(h, entity.y);
+    h = mixInt32(h, entity.hp);
+    h = mixInt32(h, entity.goalX ?? -1);
+    h = mixInt32(h, entity.goalY ?? -1);
+    h = mixInt32(h, entity.blockedTicks);
+  }
+
   h = mixInt32(h, world.markers.length);
   for (const marker of world.markers) {
     h = mixInt32(h, marker.playerId);

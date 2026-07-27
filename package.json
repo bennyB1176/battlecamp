@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "scan:secrets": "bash scripts/scan-secrets.sh",
+    "hooks:install": "git config core.hooksPath .githooks && echo 'Pre-commit hook aktiv: scannt gestagte Dateien auf Secrets.'"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

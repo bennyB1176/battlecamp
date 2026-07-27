@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import type { Command } from "../src/sim/commands.js";
 import { PING_LIFETIME_TICKS } from "../src/sim/commands.js";
 import { hashWorld, hashWorldHex } from "../src/sim/hash.js";
+import { ONE } from "../src/sim/fixed.js";
 import { createRng, nextInt } from "../src/sim/rng.js";
 import { createWorld, tickWorld } from "../src/sim/world.js";
 
@@ -37,6 +38,24 @@ function runScriptedMatch(seed: number, ticks: number): { finalHash: string; tra
         playerId: nextInt(scriptRng, 2),
         tileX: nextInt(scriptRng, MAP_SIZE),
         tileY: nextInt(scriptRng, MAP_SIZE),
+      });
+    }
+
+    // Order a random squad somewhere every so often, so the hash covers
+    // pathfinding and separation rather than only the marker bookkeeping.
+    if (world.entities.list.length > 0 && nextInt(scriptRng, 40) === 0) {
+      const squadSize = 1 + nextInt(scriptRng, world.entities.list.length);
+      const entityIds = Array.from(
+        { length: squadSize },
+        () => world.entities.list[nextInt(scriptRng, world.entities.list.length)]!.id,
+      );
+
+      commands.push({
+        type: "move",
+        playerId: 0,
+        entityIds,
+        targetX: nextInt(scriptRng, MAP_SIZE * ONE),
+        targetY: nextInt(scriptRng, MAP_SIZE * ONE),
       });
     }
 
@@ -88,7 +107,7 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    expect(finalHash).toBe("5a2557fc");
+    expect(finalHash).toBe("cf910f03");
   });
 });
 

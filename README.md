@@ -4,8 +4,8 @@ Ein 2D-Echtzeit-Strategiespiel zwischen **Command & Conquer** und **Die Siedler*
 **StarCraft**. Basis aufbauen, Wirtschaft hochziehen, Armee produzieren, Gegner zerstören — auf dem
 Handy spielbar, Strategie vor Fingerfertigkeit.
 
-> Status: **M0** — Fundament steht (Karte, Kamera, deterministischer Sim-Kern, Spielschleife).
-> Einheiten und Wirtschaft kommen in M1/M2.
+> Status: **M1** — Einheiten laufen. Auswahl per Tippen und Rahmen, Bewegungsbefehle,
+> Flow-Field-Pathfinding, Kollisionsvermeidung. Wirtschaft und Bauen kommen in M2.
 
 ## Schnellstart
 
@@ -18,8 +18,10 @@ npm run dev -- --host   # dann vom Handy im gleichen WLAN öffnen
 | --- | --- |
 | `npm run dev` | Entwicklungsserver mit Hot Reload |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest, inklusive Determinismus-Suite |
+| `npm test` | Vitest, inklusive Determinismus- und Abnahme-Suite |
 | `npm run build` | Typecheck + Produktions-Build nach `dist/` |
+| `npm run scan:secrets` | gitleaks über Arbeitskopie und Historie |
+| `npm run hooks:install` | Pre-commit-Hook aktivieren (optional) |
 
 Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklung.
 
@@ -29,10 +31,17 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 | --- | --- |
 | Ein Finger ziehen | Karte verschieben |
 | Zwei Finger | Zoomen (und verschieben) |
-| Tippen | Markierung setzen (Platzhalter für spätere Befehle) |
+| Auf eigene Einheit tippen | Einheit auswählen |
+| Auf Gelände tippen (mit Auswahl) | Bewegungsbefehl |
+| Auf Gelände tippen (ohne Auswahl) | Markierung setzen |
+| ⬚ dann ziehen | Auswahlrahmen über mehrere Einheiten |
 | Mausrad | Zoomen (Desktop) |
 | Leertaste / ⏸ | Pause |
 | 1× / 2× / 4× | Zeitraffer |
+
+Auf dem Handy gibt es keine rechte Maustaste, und Ein-Finger-Ziehen ist fürs Verschieben der Karte
+vergeben. Der Auswahlrahmen bekommt deshalb einen eigenen Modus-Knopf, der sich nach der Auswahl
+von selbst wieder ausschaltet.
 
 ## Architektur
 
@@ -65,9 +74,42 @@ Zwei Testdateien bewachen genau das: `tests/determinism.test.ts` prüft die Repr
 `tests/sim-purity.test.ts` liest den Quelltext von `src/sim` und lässt den Build scheitern, sobald
 dort `Math.random()`, `Date.now()` oder DOM-Zugriffe auftauchen.
 
-Positionen laufen ab M1 über die Fixed-Point-Helfer in `src/sim/fixed.ts`: JavaScript-Fließkomma ist
+Positionen laufen über die Fixed-Point-Helfer in `src/sim/fixed.ts`: JavaScript-Fließkomma ist
 zwischen Engines nicht bitgenau, und diese Vorsorge hält den späteren Multiplayer-Umbau auf eine
 Datei begrenzt.
+
+### Warum hundert Einheiten bezahlbar sind
+
+Drei Entscheidungen tragen die Masse:
+
+- **Flow-Fields statt A\* pro Einheit** (`src/sim/pathing.ts`). Ein Dijkstra-Lauf vom *Ziel* aus
+  beschriftet jede Kachel mit ihrem günstigsten Schritt; beliebig viele Einheiten folgen den Pfeilen
+  für den Preis eines Array-Zugriffs. Hundert Einheiten auf einen Punkt zu schicken kostet eine
+  Suche, nicht hundert. Ein Test hält das fest: nach einem Gruppenbefehl darf der Cache genau ein
+  Feld enthalten.
+- **Spatial-Hash statt Alle-gegen-alle** (`src/sim/spatial.ts`). Nachbarschaftsabfragen für
+  Trennung — später für Kampf — würden sonst quadratisch wachsen.
+- **Auswahl gehört zur Ansicht, nicht zur Welt** (`src/input/selection.ts`). Was ich markiert habe,
+  geht die Simulation nichts an; sonst müssten Replays es aufzeichnen und Multiplayer es abgleichen.
+
+Gemessen im Browser mit Touch-Emulation: 212 Einheiten bei 60 fps, Simulationsschritt 0,4 ms gegen
+ein Budget von 8 ms.
+
+## Sicherheit
+
+`npm run scan:secrets` prüft **Arbeitskopie und komplette Git-Historie** auf versehentlich
+committete Zugangsdaten. Ein Schlüssel, der einmal committet und später „entfernt" wurde, steckt
+weiterhin in jedem Klon — deshalb reicht der aktuelle Stand als Prüfziel nicht.
+
+CI führt exakt dasselbe Skript aus, damit ein grüner lokaler Lauf und eine grüne Pipeline nicht
+zweierlei bedeuten können. Die gitleaks-Binärdatei ist auf Version **und SHA-256** festgenagelt:
+ein Sicherheitswerkzeug per `latest` über das Netz zu ziehen hieße, ausgerechnet dem Prüfer blind
+zu vertrauen.
+
+Optional lokal: `npm run hooks:install` aktiviert einen Pre-commit-Hook, der die gestageten
+Änderungen prüft. Er fängt einen Fund an der einzigen Stelle ab, an der er noch gratis zu beheben
+ist — vor dem Commit. Danach hilft nur noch: **Schlüssel rotieren.** Historie umschreiben macht
+einen geteilten Schlüssel nicht ungeteilt.
 
 ## Spielkonzept
 
@@ -94,7 +136,7 @@ rotationssymmetrischen Startpositionen.
 | | Meilenstein | Fertig, wenn |
 | --- | --- | --- |
 | **M0** | Gerüst | ✅ Karte auf dem Handy flüssig scroll- und zoombar, Pause hält den Tick an |
-| M1 | Einheiten & Bewegung | 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
+| **M1** | Einheiten & Bewegung | ✅ 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
 | M2 | Wirtschaft & Bau | Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
 | M3 | Produktion & Kampf | Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
 | M4 | Echte Bots | Bot vs. Bot läuft 20 Minuten stabil, Mensch verliert gegen „Schwer" |

@@ -16,7 +16,10 @@
  */
 
 import type { World } from "./world.js";
+import type { EntityId, PlayerId } from "./entities.js";
+import { getEntity } from "./entities.js";
 import { isInside } from "./grid.js";
+import { clampGoalToMap } from "./movement.js";
 
 /**
  * A player-visible marker dropped by tapping the map. It exists so M0 has a
@@ -31,7 +34,23 @@ export interface PingCommand {
   readonly tileY: number;
 }
 
-export type Command = PingCommand;
+/**
+ * Order units to walk somewhere.
+ *
+ * Carries entity ids rather than object references, because a command must be
+ * plain serialisable data — it may have arrived over a network or been read
+ * back from a replay file, where object identity means nothing.
+ */
+export interface MoveCommand {
+  readonly type: "move";
+  readonly playerId: PlayerId;
+  readonly entityIds: readonly EntityId[];
+  /** Fixed-point world position. */
+  readonly targetX: number;
+  readonly targetY: number;
+}
+
+export type Command = PingCommand | MoveCommand;
 
 /** How many ticks a ping marker stays visible (10 ticks/second => 2 seconds). */
 export const PING_LIFETIME_TICKS = 20;
@@ -48,10 +67,31 @@ export function applyCommand(world: World, command: Command): void {
       });
       return;
     }
+    case "move": {
+      const target = clampGoalToMap(world.grid, command.targetX, command.targetY);
+
+      for (const entityId of command.entityIds) {
+        const entity = getEntity(world.entities, entityId);
+        // Missing ids are normal, not exceptional: the unit may have died
+        // between the player tapping and the command reaching this tick.
+        if (!entity) continue;
+        // The trust boundary. Once commands arrive over a network, this is what
+        // stops a client from driving its opponent's army.
+        if (entity.owner !== command.playerId) continue;
+
+        entity.goalX = target.x;
+        entity.goalY = target.y;
+        // A fresh order earns a fresh chance to make progress — otherwise a
+        // unit that gave up once would give up again almost immediately.
+        entity.blockedTicks = 0;
+      }
+      return;
+    }
     default: {
       // An unknown command type means a bug upstream, not a recoverable state —
       // silently ignoring it would let a desync creep in unnoticed.
-      throw new Error(`Unhandled command: ${JSON.stringify(command)}`);
+      const unhandled: never = command;
+      throw new Error(`Unhandled command: ${JSON.stringify(unhandled)}`);
     }
   }
 }

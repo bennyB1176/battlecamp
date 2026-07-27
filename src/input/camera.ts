@@ -128,9 +128,36 @@ export function centerOn(camera: Camera, worldX: number, worldY: number): void {
   clampCamera(camera);
 }
 
+/** A rectangle in fractional world-tile coordinates. */
+export interface WorldBox {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+
 export interface CameraControlOptions {
-  /** Fired when a press was short and still enough to count as a tap. */
-  onTap?: (tileX: number, tileY: number) => void;
+  /**
+   * Fired when a press was short and still enough to count as a tap.
+   * Coordinates are fractional world tiles, so callers can hit-test units
+   * precisely rather than only to the nearest tile.
+   */
+  onTap?: (worldX: number, worldY: number) => void;
+
+  /**
+   * When this returns true, a one-finger drag rubber-bands a selection box
+   * instead of panning.
+   *
+   * On a phone there is no right mouse button and no spare modifier key, and
+   * one-finger drag is already spoken for by panning — the map has to be
+   * movable. An explicit mode toggle is the honest solution: it costs one
+   * button and works identically under a thumb and under a mouse.
+   */
+  isBoxSelectMode?: () => boolean;
+  /** Called continuously during a box drag, and once with null when it ends. */
+  onBoxUpdate?: (box: WorldBox | null) => void;
+  /** Called once when a box drag completes. */
+  onBoxCommit?: (box: WorldBox) => void;
 }
 
 interface PointerState {
@@ -156,6 +183,14 @@ export function attachCameraControls(
   let pinchDistance = 0;
   /** Set once two fingers touch, so lifting them does not fire a stray tap. */
   let gestureWasPinch = false;
+  /** Anchor of an in-progress selection box, in world tiles. */
+  let boxAnchor: { x: number; y: number } | null = null;
+
+  const cancelBox = (): void => {
+    if (!boxAnchor) return;
+    boxAnchor = null;
+    options.onBoxUpdate?.(null);
+  };
 
   const localPoint = (event: PointerEvent): { x: number; y: number } => {
     const rect = canvas.getBoundingClientRect();
@@ -185,6 +220,13 @@ export function attachCameraControls(
     if (pair) {
       gestureWasPinch = true;
       pinchDistance = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
+      // A second finger means the player wants to zoom, not to select.
+      cancelBox();
+      return;
+    }
+
+    if (pointers.size === 1 && options.isBoxSelectMode?.()) {
+      boxAnchor = screenToWorld(camera, point.x, point.y);
     }
   };
 
@@ -217,6 +259,13 @@ export function attachCameraControls(
       return;
     }
 
+    if (boxAnchor) {
+      // Rubber-banding a selection box: the camera stays put.
+      const corner = screenToWorld(camera, point.x, point.y);
+      options.onBoxUpdate?.({ x0: boxAnchor.x, y0: boxAnchor.y, x1: corner.x, y1: corner.y });
+      return;
+    }
+
     if (pointers.size === 1) {
       // One finger: drag the map so the world follows the finger exactly.
       camera.centerX -= dx / camera.tileSize;
@@ -234,13 +283,25 @@ export function attachCameraControls(
 
     if (pointers.size < 2) pinchDistance = 0;
 
-    if (state && !gestureWasPinch && options.onTap) {
-      const heldMs = performance.now() - state.startTime;
-      const travelled = Math.hypot(state.x - state.startX, state.y - state.startY);
-      if (travelled <= TAP_MOVE_TOLERANCE && heldMs <= TAP_TIME_TOLERANCE_MS) {
-        const world = screenToWorld(camera, state.x, state.y);
-        options.onTap(Math.floor(world.x), Math.floor(world.y));
+    const wasTap =
+      state !== undefined &&
+      !gestureWasPinch &&
+      Math.hypot(state.x - state.startX, state.y - state.startY) <= TAP_MOVE_TOLERANCE &&
+      performance.now() - state.startTime <= TAP_TIME_TOLERANCE_MS;
+
+    if (boxAnchor && state) {
+      const corner = screenToWorld(camera, state.x, state.y);
+      // A tap in select mode is still a tap — a zero-area box would just
+      // clear the selection, which is not what the player meant.
+      if (!wasTap) {
+        options.onBoxCommit?.({ x0: boxAnchor.x, y0: boxAnchor.y, x1: corner.x, y1: corner.y });
       }
+      cancelBox();
+    }
+
+    if (state && wasTap && options.onTap) {
+      const world = screenToWorld(camera, state.x, state.y);
+      options.onTap(world.x, world.y);
     }
 
     if (pointers.size === 0) gestureWasPinch = false;

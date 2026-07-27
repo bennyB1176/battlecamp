@@ -8,14 +8,19 @@
  * whether it ran at 30, 60 or 120 fps.
  */
 
-import { attachCameraControls, centerOn, createCamera, type Camera } from "./input/camera.js";
+import { attachCameraControls, centerOn, createCamera, type Camera, type WorldBox } from "./input/camera.js";
+import { createSelection, pruneSelection, selectAt, selectInBox } from "./input/selection.js";
 import { createRenderer, renderFrame, resizeRenderer } from "./render/renderer.js";
 import type { Command } from "./sim/commands.js";
+import { fromTiles } from "./sim/fixed.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { createHud } from "./ui/hud.js";
 
 /** Available time multipliers. 0 is pause. */
 const SPEEDS = [1, 2, 4] as const;
+
+/** Until multiplayer, the human is always player 0. */
+const LOCAL_PLAYER = 0;
 
 /**
  * Cap on how many ticks a single frame may simulate. Without it, a phone that
@@ -56,6 +61,11 @@ function start(): void {
   let paused = false;
   let speed: number = SPEEDS[0];
 
+  /** Which units the local player has highlighted. Never enters the world. */
+  const selection = createSelection();
+  let selectMode = false;
+  let selectionBox: WorldBox | null = null;
+
   const hud = createHud({
     onTogglePause: () => {
       paused = !paused;
@@ -71,13 +81,55 @@ function start(): void {
       hud.setSpeed(next);
     },
     onCenter: () => centerOn(camera, world.grid.width / 2, world.grid.height / 2),
+    onToggleSelectMode: () => {
+      selectMode = !selectMode;
+      hud.setSelectMode(selectMode);
+    },
   });
   hud.setPaused(paused);
   hud.setSpeed(speed);
+  hud.setSelectMode(selectMode);
 
   attachCameraControls(canvas, camera, {
-    onTap: (tileX, tileY) => {
-      pendingCommands.push({ type: "ping", playerId: 0, tileX, tileY });
+    /**
+     * One tap, three meanings, resolved in the order a player expects:
+     * hitting one of my units selects it; otherwise, if I have units selected,
+     * this is where they should go; otherwise it is just a map ping.
+     */
+    onTap: (worldX, worldY) => {
+      const x = fromTiles(worldX);
+      const y = fromTiles(worldY);
+
+      if (selectAt(selection, world, x, y, LOCAL_PLAYER)) return;
+
+      if (selection.ids.size > 0) {
+        pendingCommands.push({
+          type: "move",
+          playerId: LOCAL_PLAYER,
+          entityIds: [...selection.ids],
+          targetX: x,
+          targetY: y,
+        });
+        return;
+      }
+
+      pendingCommands.push({
+        type: "ping",
+        playerId: LOCAL_PLAYER,
+        tileX: Math.floor(worldX),
+        tileY: Math.floor(worldY),
+      });
+    },
+
+    isBoxSelectMode: () => selectMode,
+    onBoxUpdate: (box) => {
+      selectionBox = box;
+    },
+    onBoxCommit: (box) => {
+      selectInBox(selection, world, fromTiles(box.x0), fromTiles(box.y0), fromTiles(box.x1), fromTiles(box.y1), LOCAL_PLAYER);
+      // Selecting is the point of the mode; staying in it would block panning.
+      selectMode = false;
+      hud.setSelectMode(false);
     },
   });
 
@@ -90,7 +142,7 @@ function start(): void {
   // Development-only handle for poking at the running game from the console or
   // from a browser-automation smoke test. Stripped from production builds.
   if (import.meta.env.DEV) {
-    (window as unknown as Record<string, unknown>)["__battlecamp"] = { world, camera, renderer };
+    (window as unknown as Record<string, unknown>)["__battlecamp"] = { world, camera, renderer, selection };
   }
 
   let previousFrameTime = performance.now();
@@ -125,10 +177,13 @@ function start(): void {
       // Hit the cap: we are behind and will never catch up. Drop the backlog
       // instead of accumulating it forever.
       if (ticksThisFrame === MAX_TICKS_PER_FRAME) accumulator = 0;
+
+      // Units die; the ids we are holding must not outlive them.
+      if (ticksThisFrame > 0) pruneSelection(selection, world);
     }
 
     const alpha = paused ? 0 : accumulator / MS_PER_TICK;
-    renderFrame(renderer, world, camera, alpha, pendingCommands);
+    renderFrame(renderer, world, camera, { alpha, pending: pendingCommands, selection, selectionBox });
 
     framesSinceReport++;
     if (now - fpsWindowStart >= 500) {
@@ -138,8 +193,8 @@ function start(): void {
 
       hud.setClock(`${formatClock(world.tick)}${paused ? " ⏸" : ""}`);
       hud.setStats(
-        `${fps} fps · Tick ${world.tick} · Sim ${lastTickMs.toFixed(2)} ms · ` +
-          `Frame ${renderer.lastFrameMs.toFixed(2)} ms`,
+        `${fps} fps · ${world.entities.list.length} Einh. · ${selection.ids.size} gew. · ` +
+          `Sim ${lastTickMs.toFixed(2)} ms · Frame ${renderer.lastFrameMs.toFixed(2)} ms`,
       );
     }
   };
