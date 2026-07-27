@@ -16,7 +16,8 @@ import { resizeCamera, visibleTileBounds, worldToScreen, type WorldBox } from ".
 import type { Selection } from "../input/selection.js";
 import { PING_LIFETIME_TICKS, type Command } from "../sim/commands.js";
 import type { World } from "../sim/world.js";
-import { drawEntities, drawOrders, drawSelectionBox } from "./entities.js";
+import type { BuildingTypeId } from "../content/buildings.js";
+import { drawBuildOverlay, drawEntities, drawOrders, drawSelectionBox } from "./entities.js";
 import { createTerrainCache, drawTerrain, type TerrainCache } from "./terrain.js";
 
 /** Below this zoom the tile grid becomes visual noise, so we stop drawing it. */
@@ -26,6 +27,8 @@ export interface Renderer {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
   readonly terrain: TerrainCache;
+  /** The world's terrain version this renderer last drew. */
+  terrainVersion: number;
   /** Milliseconds the last frame spent drawing, for the debug overlay. */
   lastFrameMs: number;
 }
@@ -38,6 +41,7 @@ export function createRenderer(canvas: HTMLCanvasElement, world: World): Rendere
     canvas,
     ctx,
     terrain: createTerrainCache(world.grid),
+    terrainVersion: world.terrainVersion,
     lastFrameMs: 0,
   };
 }
@@ -82,6 +86,9 @@ export interface FrameInput {
   readonly selection: Selection;
   /** The rubber-band rectangle currently being dragged, if any. */
   readonly selectionBox: WorldBox | null;
+  /** Building type awaiting placement; tints every legal tile. */
+  readonly buildPreview: BuildingTypeId | null;
+  readonly localPlayer: number;
 }
 
 export function renderFrame(renderer: Renderer, world: World, camera: Camera, input: FrameInput): void {
@@ -91,9 +98,20 @@ export function renderFrame(renderer: Renderer, world: World, camera: Camera, in
   ctx.fillStyle = "#12161c";
   ctx.fillRect(0, 0, camera.viewportWidth, camera.viewportHeight);
 
+  // The simulation bumps terrainVersion when the ground changed — a felled
+  // forest, a finished building. Pulling it here means the sim never has to
+  // know a renderer exists.
+  if (renderer.terrainVersion !== world.terrainVersion) {
+    renderer.terrain.dirty = true;
+    renderer.terrainVersion = world.terrainVersion;
+  }
+
   drawTerrain(ctx, renderer.terrain, camera, world.grid);
   drawGridLines(ctx, camera);
   drawMapBorder(ctx, camera, world);
+  if (input.buildPreview !== null) {
+    drawBuildOverlay(ctx, world, camera, input.localPlayer, input.buildPreview);
+  }
   drawMarkers(ctx, world, camera, input.alpha);
   drawPendingCommands(ctx, camera, input.pending);
   drawOrders(ctx, world, camera, input.selection);

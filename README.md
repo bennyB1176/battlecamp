@@ -6,8 +6,8 @@ Handy spielbar, Strategie vor Fingerfertigkeit.
 
 **▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
 
-> Status: **M1** — Einheiten laufen. Auswahl per Tippen und Rahmen, Bewegungsbefehle,
-> Flow-Field-Pathfinding, Kollisionsvermeidung. Wirtschaft und Bauen kommen in M2.
+> Status: **M2** — Wirtschaft läuft. Arbeiter bauen Holz, Stein und Erz ab, das Hauptquartier
+> bildet Arbeiter aus, Lager lassen sich bauen. Produktion und Kampf kommen in M3.
 
 ## Schnellstart
 
@@ -35,8 +35,12 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 | Ein Finger ziehen | Karte verschieben |
 | Zwei Finger | Zoomen (und verschieben) |
 | Auf eigene Einheit tippen | Einheit auswählen |
+| Auf Rohstoff tippen (mit Arbeitern) | Abbauen |
+| Auf eigene Baustelle tippen (mit Arbeitern) | Beim Bau helfen |
 | Auf Gelände tippen (mit Auswahl) | Bewegungsbefehl |
 | Auf Gelände tippen (ohne Auswahl) | Markierung setzen |
+| Auf Hauptquartier tippen | Arbeiter ausbilden |
+| 🔨 dann Gebäude wählen | Bauen — erlaubte Fläche wird markiert |
 | ⬚ dann ziehen | Auswahlrahmen über mehrere Einheiten |
 | Mausrad | Zoomen (Desktop) |
 | Leertaste / ⏸ | Pause |
@@ -122,6 +126,21 @@ Drei Entscheidungen tragen die Masse:
 Gemessen im Browser mit Touch-Emulation: 212 Einheiten bei 60 fps, Simulationsschritt 0,4 ms gegen
 ein Budget von 8 ms.
 
+### Wo im Spiel eine Entscheidung entsteht
+
+Die Wirtschaft hat bewusst **keine** Warenlogistik: keine Karren, keine Versorgungslinien. Modelliert
+ist genau *eine* Strecke — der Pendelweg des Arbeiters vom Vorkommen zum nächsten Abgabepunkt. Genau
+die macht das Lager zu einer Entscheidung: nah am Wald verkürzt es jeden künftigen Weg, steht dafür
+aber verwundbar weit weg von zuhause.
+
+Dazu zwei Regeln, die dem Ganzen Form geben:
+
+- **Vorkommen sind endlich.** Eine abgeerntete Kachel wird wieder Wiese. Wer seine Umgebung
+  ausgeräumt hat, muss dorthin expandieren, wo auch andere hinwollen.
+- **Gebaut wird nur in Reichweite fertiger eigener Gebäude.** Das macht eine Basis zu einem
+  zusammenhängenden, verteidigbaren Gebilde statt zu verstreuten Hütten. Nur *fertige* Gebäude zählen
+  — sonst kettet man unfertige Hüllen über die Karte und umgeht die Regel.
+
 ## Sicherheit
 
 `npm run scan:secrets` prüft **Arbeitskopie und komplette Git-Historie** auf versehentlich
@@ -164,7 +183,7 @@ rotationssymmetrischen Startpositionen.
 | --- | --- | --- |
 | **M0** | Gerüst | ✅ Karte auf dem Handy flüssig scroll- und zoombar, Pause hält den Tick an |
 | **M1** | Einheiten & Bewegung | ✅ 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
-| M2 | Wirtschaft & Bau | Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
+| **M2** | Wirtschaft & Bau | ✅ Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
 | M3 | Produktion & Kampf | Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
 | M4 | Echte Bots | Bot vs. Bot läuft 20 Minuten stabil, Mensch verliert gegen „Schwer" |
 | M5 | Ketten, Nahrung, Energie | Erster Balance-Pass über Massen-Headless-Matches |

@@ -12,6 +12,7 @@
 
 import { fromTiles } from "../sim/fixed.js";
 import { TICKS_PER_SECOND } from "../sim/constants.js";
+import { Resource, type Cost } from "../sim/resources.js";
 
 export const UnitType = {
   Worker: 0,
@@ -30,6 +31,9 @@ export interface UnitDef {
   readonly speed: number;
   /** Vision radius in fixed units. Unused until fog of war in M6. */
   readonly sight: number;
+  readonly cost: Cost;
+  /** Ticks of training before the unit walks out. */
+  readonly trainTicks: number;
   /** Placeholder colour until sprites exist. */
   readonly color: string;
 }
@@ -41,6 +45,8 @@ function def(
   radiusTiles: number,
   tilesPerSecond: number,
   sightTiles: number,
+  cost: Cost,
+  trainSeconds: number,
   color: string,
 ): UnitDef {
   return {
@@ -49,14 +55,18 @@ function def(
     radius: fromTiles(radiusTiles),
     speed: Math.max(1, Math.round(fromTiles(tilesPerSecond) / TICKS_PER_SECOND)),
     sight: fromTiles(sightTiles),
+    cost,
+    trainTicks: Math.max(1, Math.round(trainSeconds * TICKS_PER_SECOND)),
     color,
   };
 }
 
 export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
-  [UnitType.Worker]: def("Arbeiter", 40, 0.3, 2.4, 5, "#d9c26a"),
-  [UnitType.Soldier]: def("Soldat", 80, 0.32, 3.0, 6, "#c8553d"),
-  [UnitType.Scout]: def("Späher", 50, 0.28, 4.5, 9, "#6fb3d9"),
+  // A worker has to pay for itself, or there is no reason ever to stop making
+  // them — the cost is what makes "more workers or a forward depot?" a question.
+  [UnitType.Worker]: def("Arbeiter", 40, 0.3, 2.4, 5, { [Resource.Wood]: 50 }, 8, "#d9c26a"),
+  [UnitType.Soldier]: def("Soldat", 80, 0.32, 3.0, 6, { [Resource.Wood]: 40, [Resource.Ore]: 20 }, 12, "#c8553d"),
+  [UnitType.Scout]: def("Späher", 50, 0.28, 4.5, 9, { [Resource.Wood]: 60 }, 10, "#6fb3d9"),
 };
 
 export function unitDef(typeId: UnitTypeId): UnitDef {

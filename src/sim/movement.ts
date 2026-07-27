@@ -15,8 +15,7 @@
  * destination accepts that the spot is taken and stops too.
  */
 
-import type { Entity } from "./entities.js";
-import { unitDef } from "../content/units.js";
+import { isUnit, unitDefOf, type Entity } from "./entities.js";
 import { clamp, dist, distSq, isqrt, ONE, toTileIndex } from "./fixed.js";
 import { isPassable, type TileGrid } from "./grid.js";
 import { flowDirectionAt, getFlowField, isReachable, type FlowFieldCache } from "./pathing.js";
@@ -72,10 +71,14 @@ export function updateMovement(
 
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i]!;
+    // Buildings do not move, and must not be nudged by separation — they occupy
+    // tiles in the grid instead, so units path around them.
+    if (!isUnit(entity)) continue;
+
     entity.prevX = entity.x;
     entity.prevY = entity.y;
 
-    const def = unitDef(entity.typeId);
+    const def = unitDefOf(entity);
     const startX = entity.x;
     const startY = entity.y;
 
@@ -100,7 +103,9 @@ function computeSeparation(entities: readonly Entity[], spatial: SpatialHash): v
 
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i]!;
-    const radius = unitDef(entity.typeId).radius;
+    if (!isUnit(entity)) continue;
+
+    const radius = unitDefOf(entity).radius;
     // Query wide enough to catch anyone whose body could overlap ours.
     const neighbours = queryRadius(spatial, entity.x, entity.y, radius * 3, neighbourScratch);
 
@@ -109,8 +114,9 @@ function computeSeparation(entities: readonly Entity[], spatial: SpatialHash): v
 
     for (const other of neighbours) {
       if (other === entity) continue;
+      if (!isUnit(other)) continue;
 
-      const minimumGap = radius + unitDef(other.typeId).radius;
+      const minimumGap = radius + unitDefOf(other).radius;
       const separationSq = distSq(entity.x, entity.y, other.x, other.y);
       if (separationSq >= minimumGap * minimumGap) continue;
 

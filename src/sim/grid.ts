@@ -48,12 +48,32 @@ export interface TileGrid {
   readonly height: number;
   /** Row-major terrain bytes, length = width * height. */
   readonly tiles: Uint8Array;
+  /**
+   * Tiles occupied by a building, parallel to `tiles`.
+   *
+   * Kept separate from terrain rather than overwriting it: a building can be
+   * destroyed, and the grass underneath has to come back. Pathing and placement
+   * both consult it, so a unit walks around a headquarters without any system
+   * needing to know what a headquarters is.
+   */
+  readonly blocked: Uint8Array;
 }
 
 export function createGrid(width: number, height: number, fill: TerrainType = Terrain.Grass): TileGrid {
   const tiles = new Uint8Array(width * height);
   if (fill !== 0) tiles.fill(fill);
-  return { width, height, tiles };
+  return { width, height, tiles, blocked: new Uint8Array(width * height) };
+}
+
+/** True when a building stands here. */
+export function isBlocked(grid: TileGrid, x: number, y: number): boolean {
+  if (!isInside(grid, x, y)) return false;
+  return grid.blocked[y * grid.width + x] === 1;
+}
+
+export function setBlocked(grid: TileGrid, x: number, y: number, blocked: boolean): void {
+  if (!isInside(grid, x, y)) return;
+  grid.blocked[y * grid.width + x] = blocked ? 1 : 0;
 }
 
 export function isInside(grid: TileGrid, x: number, y: number): boolean {
@@ -72,6 +92,7 @@ export function setTerrain(grid: TileGrid, x: number, y: number, terrain: Terrai
 }
 
 export function isPassable(grid: TileGrid, x: number, y: number): boolean {
+  if (isBlocked(grid, x, y)) return false;
   return TERRAIN_INFO[terrainAt(grid, x, y)].passable;
 }
 
@@ -91,6 +112,7 @@ export function isBuildable(grid: TileGrid, x: number, y: number, footprint = 1)
       const tx = x + dx;
       const ty = y + dy;
       if (!isInside(grid, tx, ty)) return false;
+      if (isBlocked(grid, tx, ty)) return false;
       if (!TERRAIN_INFO[terrainAt(grid, tx, ty)].buildable) return false;
     }
   }

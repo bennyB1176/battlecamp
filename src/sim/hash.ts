@@ -10,6 +10,7 @@
  * detect desync early instead of letting two clients drift apart silently.
  */
 
+import { RESOURCE_KINDS } from "./resources.js";
 import type { World } from "./world.js";
 
 const FNV_OFFSET_BASIS = 0x811c9dc5;
@@ -40,6 +41,17 @@ export function hashWorld(world: World): number {
   h = mixInt32(h, world.grid.height);
   for (let i = 0; i < world.grid.tiles.length; i++) {
     h = mix(h, world.grid.tiles[i]!);
+    h = mix(h, world.grid.blocked[i]!);
+    // Deposits are simulation truth: two clients disagreeing about how much
+    // wood is left in a tile diverge from the next worker onward.
+    h = mixInt32(h, world.deposits[i]!);
+  }
+
+  for (const player of world.players) {
+    h = mixInt32(h, player.id);
+    for (const kind of RESOURCE_KINDS) {
+      h = mixInt32(h, player.resources[kind]);
+    }
   }
 
   // Entities are hashed in list order, which the store guarantees is
@@ -48,6 +60,7 @@ export function hashWorld(world: World): number {
   h = mixInt32(h, world.entities.list.length);
   for (const entity of world.entities.list) {
     h = mixInt32(h, entity.id);
+    h = mixInt32(h, entity.kind);
     h = mixInt32(h, entity.typeId);
     h = mixInt32(h, entity.owner);
     h = mixInt32(h, entity.x);
@@ -56,6 +69,31 @@ export function hashWorld(world: World): number {
     h = mixInt32(h, entity.goalX ?? -1);
     h = mixInt32(h, entity.goalY ?? -1);
     h = mixInt32(h, entity.blockedTicks);
+    h = mixInt32(h, entity.construction ?? -1);
+    h = mixInt32(h, entity.buildTargetId ?? -1);
+
+    const job = entity.job;
+    if (job) {
+      h = mixInt32(h, job.nodeX);
+      h = mixInt32(h, job.nodeY);
+      h = mixInt32(h, job.carrying ?? -1);
+      h = mixInt32(h, job.carried);
+      h = mixInt32(h, job.harvestTicks);
+      h = mix(h, job.returning ? 1 : 0);
+    } else {
+      h = mix(h, 0xff);
+    }
+
+    const production = entity.production;
+    if (production) {
+      h = mixInt32(h, production.progress);
+      h = mixInt32(h, production.rallyX ?? -1);
+      h = mixInt32(h, production.rallyY ?? -1);
+      h = mixInt32(h, production.queue.length);
+      for (const queued of production.queue) h = mixInt32(h, queued);
+    } else {
+      h = mix(h, 0xfe);
+    }
   }
 
   h = mixInt32(h, world.markers.length);
