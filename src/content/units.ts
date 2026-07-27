@@ -34,9 +34,27 @@ export interface UnitDef {
   readonly cost: Cost;
   /** Ticks of training before the unit walks out. */
   readonly trainTicks: number;
-  /** Placeholder colour until sprites exist. */
-  readonly color: string;
+  /**
+   * Which silhouette the renderer draws.
+   *
+   * Shape carries the unit's identity, not colour — colour is reserved for
+   * whose side it is on. Swapping in real sprites later means changing what
+   * this field selects, and nothing else.
+   */
+  readonly shape: UnitShape;
 }
+
+/** Drawn silhouettes. Each must be recognisable at a glance and from a distance. */
+export const UnitShape = {
+  /** Round and soft — reads as civilian. */
+  Round: "round",
+  /** Pointed — reads as fast. */
+  Arrow: "arrow",
+  /** Broad and flat-fronted — reads as a soldier behind a shield. */
+  Shield: "shield",
+} as const;
+
+export type UnitShape = (typeof UnitShape)[keyof typeof UnitShape];
 
 /** Helper so the table below can be written in tiles and tiles/second. */
 function def(
@@ -47,7 +65,7 @@ function def(
   sightTiles: number,
   cost: Cost,
   trainSeconds: number,
-  color: string,
+  shape: UnitShape,
 ): UnitDef {
   return {
     name,
@@ -57,16 +75,25 @@ function def(
     sight: fromTiles(sightTiles),
     cost,
     trainTicks: Math.max(1, Math.round(trainSeconds * TICKS_PER_SECOND)),
-    color,
+    shape,
   };
 }
 
 export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
   // A worker has to pay for itself, or there is no reason ever to stop making
   // them — the cost is what makes "more workers or a forward depot?" a question.
-  [UnitType.Worker]: def("Arbeiter", 40, 0.3, 2.4, 5, { [Resource.Wood]: 50 }, 8, "#d9c26a"),
-  [UnitType.Soldier]: def("Soldat", 80, 0.32, 3.0, 6, { [Resource.Wood]: 40, [Resource.Ore]: 20 }, 12, "#c8553d"),
-  [UnitType.Scout]: def("Späher", 50, 0.28, 4.5, 9, { [Resource.Wood]: 60 }, 10, "#6fb3d9"),
+  [UnitType.Worker]: def("Arbeiter", 40, 0.3, 2.4, 5, { [Resource.Wood]: 50 }, 8, UnitShape.Round),
+  [UnitType.Soldier]: def(
+    "Soldat",
+    80,
+    0.32,
+    3.0,
+    6,
+    { [Resource.Wood]: 40, [Resource.Ore]: 20 },
+    12,
+    UnitShape.Shield,
+  ),
+  [UnitType.Scout]: def("Späher", 50, 0.28, 4.5, 9, { [Resource.Wood]: 60 }, 10, UnitShape.Arrow),
 };
 
 export function unitDef(typeId: UnitTypeId): UnitDef {

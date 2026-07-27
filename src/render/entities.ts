@@ -1,22 +1,36 @@
 /**
- * Drawing units.
+ * Drawing units and buildings.
  *
- * The simulation ticks ten times a second; the display refreshes sixty. Drawing
- * raw simulation positions would therefore show visible stepping, so every unit
- * is drawn between where it was last tick and where it is now, using the
- * `alpha` the game loop provides. This is the entire reason entities carry a
+ * Two rules carry the whole visual language, and they exist for legibility
+ * rather than looks:
+ *
+ * **Colour says whose. Shape says what.** In a fight, the first question is
+ * always friend or foe, so colour is reserved for the player and never spent on
+ * distinguishing unit types. Type is carried by silhouette, which survives
+ * being small, overlapping and half off-screen. Colour-coding the types instead
+ * is a classic mistake: your red soldier and the enemy's red soldier become the
+ * same thing exactly when telling them apart matters most.
+ *
+ * **Detail scales with zoom.** Zoomed out, a unit is a dot in its player's
+ * colour — anything more is noise at that size.
+ *
+ * The simulation ticks ten times a second and the display refreshes sixty, so
+ * everything is drawn between where it was last tick and where it is now, using
+ * the `alpha` the game loop provides. That is the entire reason entities carry
  * `prevX`/`prevY`.
  *
- * Placeholder art: coloured discs with a dark outline. Silhouette and colour
- * carry the meaning, which is all strategy needs — sprites can replace this
- * without touching anything else.
+ * Nothing here loads an image. Silhouettes are Canvas paths, which keeps the
+ * build tiny and means real sprites can replace them later by changing what
+ * `UnitDef.shape` selects — and nothing else.
  */
 
 import { buildingDef, type BuildingTypeId } from "../content/buildings.js";
+import { playerColors } from "../content/players.js";
+import { UnitShape } from "../content/units.js";
 import type { Camera } from "../input/camera.js";
 import { visibleTileBounds, worldToScreen } from "../input/camera.js";
-import { canPlace, PlacementError } from "../sim/construction.js";
 import type { Selection } from "../input/selection.js";
+import { canPlace, PlacementError } from "../sim/construction.js";
 import {
   buildingDefOf,
   buildingOrigin,
@@ -24,13 +38,17 @@ import {
   isComplete,
   unitDefOf,
   type Entity,
+  type EntityId,
 } from "../sim/entities.js";
 import { toTiles } from "../sim/fixed.js";
 import { Resource } from "../sim/resources.js";
 import type { World } from "../sim/world.js";
 
-/** Below this zoom, units are drawn as plain dots — outlines just muddy them. */
-const DETAIL_MIN_TILE_SIZE = 10;
+/** Below this zoom, units are plain dots — outlines and glyphs only muddy them. */
+const DETAIL_MIN_TILE_SIZE = 12;
+
+/** Below this, health bars are more clutter than information. */
+const HEALTH_BAR_MIN_TILE_SIZE = 16;
 
 export interface WorldBox {
   readonly x0: number;
@@ -38,6 +56,22 @@ export interface WorldBox {
   readonly x1: number;
   readonly y1: number;
 }
+
+/**
+ * Which way each unit is facing, remembered between frames.
+ *
+ * Facing is derived from movement, so it needs somewhere to persist while a
+ * unit stands still. It lives here rather than in the world because it is
+ * purely cosmetic — putting it in the simulation would mean replays recorded it
+ * and multiplayer clients had to agree on it, for no gain.
+ */
+const facings = new Map<EntityId, number>();
+
+const RESOURCE_COLORS: Record<number, string> = {
+  [Resource.Wood]: "#6ba85a",
+  [Resource.Stone]: "#d8d5cc",
+  [Resource.Ore]: "#e0a75c",
+};
 
 export function drawEntities(
   ctx: CanvasRenderingContext2D,
@@ -47,74 +81,165 @@ export function drawEntities(
   alpha: number,
 ): void {
   const bounds = visibleTileBounds(camera);
-  // A margin so a unit straddling the edge does not pop in and out.
-  const margin = 2;
+  const margin = 3;
   const detailed = camera.tileSize >= DETAIL_MIN_TILE_SIZE;
 
-  for (const entity of world.entities.list) {
-    const worldX = toTiles(entity.prevX + (entity.x - entity.prevX) * alpha);
-    const worldY = toTiles(entity.prevY + (entity.y - entity.prevY) * alpha);
+  // Buildings first, so units walking past a wall are drawn over it.
+  for (const pass of [true, false]) {
+    for (const entity of world.entities.list) {
+      if (isBuilding(entity) !== pass) continue;
 
-    if (
-      worldX < bounds.minX - margin ||
-      worldX > bounds.maxX + margin ||
-      worldY < bounds.minY - margin ||
-      worldY > bounds.maxY + margin
-    ) {
-      continue;
-    }
+      const worldX = toTiles(entity.prevX + (entity.x - entity.prevX) * alpha);
+      const worldY = toTiles(entity.prevY + (entity.y - entity.prevY) * alpha);
 
-    const screen = worldToScreen(camera, worldX, worldY);
-    const selected = selection.ids.has(entity.id);
-
-    if (isBuilding(entity)) {
-      drawBuilding(ctx, entity, camera, selected, detailed);
-      continue;
-    }
-
-    const def = unitDefOf(entity);
-    const radius = Math.max(2, toTiles(def.radius) * camera.tileSize);
-
-    ctx.fillStyle = def.color;
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (detailed) {
-      ctx.strokeStyle = "rgba(0,0,0,0.65)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // A worker carrying a load gets a dot in its resource's colour, so the
-      // economy is legible at a glance instead of only in the numbers.
-      if (entity.job?.carrying !== null && entity.job !== null && entity.job.carried > 0) {
-        ctx.fillStyle = RESOURCE_COLORS[entity.job.carrying] ?? "#ffffff";
-        ctx.beginPath();
-        ctx.arc(screen.x, screen.y - radius - 3, Math.max(1.5, radius * 0.35), 0, Math.PI * 2);
-        ctx.fill();
+      if (
+        worldX < bounds.minX - margin ||
+        worldX > bounds.maxX + margin ||
+        worldY < bounds.minY - margin ||
+        worldY > bounds.maxY + margin
+      ) {
+        continue;
       }
-    }
 
-    if (selected) {
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, radius + 4, 0, Math.PI * 2);
-      ctx.stroke();
+      const selected = selection.ids.has(entity.id);
+      if (isBuilding(entity)) {
+        drawBuilding(ctx, entity, camera, selected, detailed);
+      } else {
+        drawUnit(ctx, entity, camera, worldX, worldY, selected, detailed);
+      }
     }
   }
 }
 
-const RESOURCE_COLORS: Record<number, string> = {
-  [Resource.Wood]: "#6ba85a",
-  [Resource.Stone]: "#c9c6bd",
-  [Resource.Ore]: "#d69a4c",
-};
+function drawUnit(
+  ctx: CanvasRenderingContext2D,
+  entity: Entity,
+  camera: Camera,
+  worldX: number,
+  worldY: number,
+  selected: boolean,
+  detailed: boolean,
+): void {
+  const def = unitDefOf(entity);
+  const colors = playerColors(entity.owner);
+  const screen = worldToScreen(camera, worldX, worldY);
+  const radius = Math.max(2, toTiles(def.radius) * camera.tileSize);
+
+  if (!detailed) {
+    // Too small for a silhouette to read — a coloured dot says the only thing
+    // still legible at this size: whose it is.
+    ctx.fillStyle = colors.body;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, Math.max(1.5, radius), 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  const facing = updateFacing(entity);
+
+  ctx.save();
+  ctx.translate(screen.x, screen.y);
+  ctx.rotate(facing);
+
+  ctx.fillStyle = colors.body;
+  ctx.strokeStyle = colors.dark;
+  ctx.lineWidth = Math.max(1, radius * 0.22);
+
+  traceUnitShape(ctx, def.shape, radius);
+  ctx.fill();
+  ctx.stroke();
+
+  // A lighter mark toward the front gives the silhouette a readable "nose", so
+  // facing is obvious even when a unit is barely bigger than a few pixels.
+  ctx.fillStyle = colors.light;
+  ctx.beginPath();
+  ctx.arc(radius * 0.42, 0, Math.max(1, radius * 0.22), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  if (entity.job !== null && entity.job.carrying !== null && entity.job.carried > 0) {
+    // What a worker is carrying, so the economy is legible on the map and not
+    // only in the numbers at the top.
+    ctx.fillStyle = RESOURCE_COLORS[entity.job.carrying] ?? "#ffffff";
+    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y - radius - radius * 0.55, Math.max(1.5, radius * 0.38), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (selected) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, radius + 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  drawHealthBar(ctx, entity, camera, screen.x, screen.y - radius - 8, radius * 2.4, def.maxHp, selected);
+}
 
 /**
- * Buildings are drawn as squares on their real footprint, which matters for
- * more than looks: the shape on screen is exactly the ground they block, so a
- * player can see why a unit walks around rather than through.
+ * Facing, derived from where the unit moved.
+ *
+ * Below a threshold the movement is jitter from separation rather than travel,
+ * and turning to face it would make an idle crowd twitch.
+ */
+function updateFacing(entity: Entity): number {
+  const dx = entity.x - entity.prevX;
+  const dy = entity.y - entity.prevY;
+
+  if (dx * dx + dy * dy > 4) {
+    const angle = Math.atan2(dy, dx);
+    facings.set(entity.id, angle);
+    return angle;
+  }
+
+  return facings.get(entity.id) ?? 0;
+}
+
+/** Silhouettes, drawn facing +x so the caller can simply rotate. */
+function traceUnitShape(ctx: CanvasRenderingContext2D, shape: string, radius: number): void {
+  ctx.beginPath();
+
+  switch (shape) {
+    case UnitShape.Arrow: {
+      // Narrow and pointed: reads as fast even at a glance.
+      ctx.moveTo(radius * 1.35, 0);
+      ctx.lineTo(-radius * 0.8, radius * 0.85);
+      ctx.lineTo(-radius * 0.35, 0);
+      ctx.lineTo(-radius * 0.8, -radius * 0.85);
+      ctx.closePath();
+      return;
+    }
+    case UnitShape.Shield: {
+      // Broad, flat-fronted: reads as someone standing behind a shield.
+      const w = radius * 1.05;
+      const h = radius * 1.1;
+      ctx.moveTo(w, -h * 0.55);
+      ctx.lineTo(w, h * 0.55);
+      ctx.lineTo(-w * 0.55, h);
+      ctx.lineTo(-w, h * 0.3);
+      ctx.lineTo(-w, -h * 0.3);
+      ctx.lineTo(-w * 0.55, -h);
+      ctx.closePath();
+      return;
+    }
+    case UnitShape.Round:
+    default: {
+      // Soft and round: reads as civilian, not a threat.
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      return;
+    }
+  }
+}
+
+/**
+ * Buildings are drawn on their real footprint, which matters for more than
+ * looks: the shape on screen is exactly the ground they block, so it is obvious
+ * why a unit walks around rather than through.
  */
 function drawBuilding(
   ctx: CanvasRenderingContext2D,
@@ -124,28 +249,44 @@ function drawBuilding(
   detailed: boolean,
 ): void {
   const def = buildingDefOf(entity);
+  const colors = playerColors(entity.owner);
   const origin = buildingOrigin(entity);
   const topLeft = worldToScreen(camera, origin.tileX, origin.tileY);
   const size = def.footprint * camera.tileSize;
 
   const underConstruction = !isComplete(entity);
+  const inset = size * 0.08;
 
-  ctx.fillStyle = def.color;
-  ctx.globalAlpha = underConstruction ? 0.45 : 1;
-  ctx.fillRect(topLeft.x, topLeft.y, size, size);
-  ctx.globalAlpha = 1;
+  ctx.save();
+  ctx.globalAlpha = underConstruction ? 0.5 : 1;
+
+  // Walls in the player's colour, roof a darker shade of the same hue: the
+  // building reads as one object rather than two stacked rectangles.
+  ctx.fillStyle = colors.body;
+  ctx.fillRect(topLeft.x + inset, topLeft.y + inset, size - inset * 2, size - inset * 2);
 
   if (detailed) {
-    ctx.strokeStyle = "rgba(0,0,0,0.7)";
+    ctx.fillStyle = colors.dark;
+    // A roof band across the top third, and a doorway notch at the bottom, give
+    // the block an orientation and a sense of scale.
+    ctx.fillRect(topLeft.x + inset, topLeft.y + inset, size - inset * 2, (size - inset * 2) * 0.34);
+
+    ctx.fillStyle = colors.light;
+    const doorWidth = size * 0.22;
+    ctx.fillRect(topLeft.x + size / 2 - doorWidth / 2, topLeft.y + size - inset - size * 0.2, doorWidth, size * 0.2);
+
+    ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(topLeft.x, topLeft.y, size, size);
+    ctx.strokeRect(topLeft.x + inset, topLeft.y + inset, size - inset * 2, size - inset * 2);
   }
 
+  ctx.globalAlpha = 1;
+
   if (underConstruction && entity.construction !== null) {
-    // A scaffolding bar, filling as the work is done.
+    // Scaffolding: a bar that fills as the work is done.
     const done = 1 - entity.construction / def.buildWork;
     const barHeight = Math.max(3, size * 0.12);
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(topLeft.x, topLeft.y + size - barHeight, size, barHeight);
     ctx.fillStyle = "#ffd666";
     ctx.fillRect(topLeft.x, topLeft.y + size - barHeight, size * done, barHeight);
@@ -156,48 +297,56 @@ function drawBuilding(
     ctx.lineWidth = 2;
     ctx.strokeRect(topLeft.x - 3, topLeft.y - 3, size + 6, size + 6);
   }
+
+  ctx.restore();
+
+  if (!underConstruction) {
+    drawHealthBar(ctx, entity, camera, topLeft.x + size / 2, topLeft.y - 8, size * 0.9, def.maxHp, selected);
+  }
 }
 
-/** A faint line from each selected unit to where it was told to go. */
-export function drawOrders(
+/**
+ * A health bar, shown only when it says something: the thing is damaged, or the
+ * player has selected it. Permanent bars over a healthy army are pure clutter.
+ */
+function drawHealthBar(
   ctx: CanvasRenderingContext2D,
-  world: World,
+  entity: Entity,
   camera: Camera,
-  selection: Selection,
+  centerX: number,
+  y: number,
+  width: number,
+  maxHp: number,
+  selected: boolean,
 ): void {
-  if (selection.ids.size === 0) return;
+  if (camera.tileSize < HEALTH_BAR_MIN_TILE_SIZE) return;
 
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.28)";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([3, 5]);
-  ctx.beginPath();
+  const fraction = Math.max(0, Math.min(1, entity.hp / maxHp));
+  if (fraction >= 1 && !selected) return;
 
-  for (const entity of world.entities.list) {
-    if (!selection.ids.has(entity.id)) continue;
-    if (entity.goalX === null || entity.goalY === null) continue;
+  const height = Math.max(3, camera.tileSize * 0.12);
+  const left = centerX - width / 2;
 
-    const from = worldToScreen(camera, toTiles(entity.x), toTiles(entity.y));
-    const to = worldToScreen(camera, toTiles(entity.goalX), toTiles(entity.goalY));
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-  }
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(left, y, width, height);
 
-  ctx.stroke();
-  ctx.restore();
+  // Green through amber to red: the colour alone tells you how bad it is,
+  // without having to read the length.
+  ctx.fillStyle = fraction > 0.6 ? "#63c163" : fraction > 0.3 ? "#e0b34a" : "#d95c4a";
+  ctx.fillRect(left, y, width * fraction, height);
 }
 
 /**
  * While a building is armed, tint every tile it could legally stand on.
  *
  * This is the affordance that makes the build-radius rule teachable. Without
- * it, a player taps somewhere reasonable, gets refused, and has to infer an
+ * it, a player taps somewhere reasonable, is refused, and has to infer an
  * invisible rule from failures; with it, the rule is simply visible before the
  * first tap.
  *
  * Cost is deliberately not part of the tint — that is what the greyed-out
- * button in the menu says. Mixing the two would make "you cannot afford this"
- * look like "you cannot build here".
+ * button says. Mixing the two would make "you cannot afford this" look like
+ * "you cannot build here".
  */
 export function drawBuildOverlay(
   ctx: CanvasRenderingContext2D,
@@ -214,8 +363,6 @@ export function drawBuildOverlay(
   // terrain in the palette.
   const legal = (tileX: number, tileY: number): boolean => {
     const check = canPlace(world, playerId, typeId, tileX, tileY);
-    // A position is legal even when the bank is short; affordability is the
-    // button's job to communicate, not the map's.
     return check.ok || check.error === PlacementError.TooExpensive;
   };
 
@@ -246,9 +393,7 @@ export function drawBuildOverlay(
     for (let column = 0; column < valid[row]!.length; column++) {
       if (!valid[row]![column]) continue;
 
-      const tileX = bounds.minX + column;
-      const tileY = bounds.minY + row;
-      const topLeft = worldToScreen(camera, tileX, tileY);
+      const topLeft = worldToScreen(camera, bounds.minX + column, bounds.minY + row);
       const size = camera.tileSize;
 
       // Tiles outside the visible slice count as invalid, so the border also
@@ -281,6 +426,35 @@ export function drawBuildOverlay(
   ctx.restore();
 }
 
+/** A faint line from each selected unit to where it was told to go. */
+export function drawOrders(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  camera: Camera,
+  selection: Selection,
+): void {
+  if (selection.ids.size === 0) return;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 5]);
+  ctx.beginPath();
+
+  for (const entity of world.entities.list) {
+    if (!selection.ids.has(entity.id)) continue;
+    if (entity.goalX === null || entity.goalY === null) continue;
+
+    const from = worldToScreen(camera, toTiles(entity.x), toTiles(entity.y));
+    const to = worldToScreen(camera, toTiles(entity.goalX), toTiles(entity.goalY));
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+  }
+
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** The rubber-band rectangle while the player is dragging a selection box. */
 export function drawSelectionBox(
   ctx: CanvasRenderingContext2D,
@@ -291,14 +465,22 @@ export function drawSelectionBox(
 
   const start = worldToScreen(camera, Math.min(box.x0, box.x1), Math.min(box.y0, box.y1));
   const end = worldToScreen(camera, Math.max(box.x0, box.x1), Math.max(box.y0, box.y1));
-  const width = end.x - start.x;
-  const height = end.y - start.y;
 
   ctx.save();
   ctx.fillStyle = "rgba(255, 214, 102, 0.12)";
-  ctx.fillRect(start.x, start.y, width, height);
+  ctx.fillRect(start.x, start.y, end.x - start.x, end.y - start.y);
   ctx.strokeStyle = "rgba(255, 214, 102, 0.9)";
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(start.x, start.y, width, height);
+  ctx.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
   ctx.restore();
+}
+
+/** Drop remembered facings for units that no longer exist. */
+export function pruneRenderState(world: World): void {
+  if (facings.size < 256) return;
+
+  const alive = new Set(world.entities.list.map((entity) => entity.id));
+  for (const id of facings.keys()) {
+    if (!alive.has(id)) facings.delete(id);
+  }
 }

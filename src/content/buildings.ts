@@ -42,7 +42,6 @@ export interface BuildingDef {
   readonly acceptsDeliveries: boolean;
   /** Unit types this building can train. */
   readonly produces: readonly UnitTypeId[];
-  readonly color: string;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -55,7 +54,6 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     buildRadius: 7,
     acceptsDeliveries: true,
     produces: [UnitType.Worker],
-    color: "#8c7ab8",
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -66,7 +64,6 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     buildRadius: 4,
     acceptsDeliveries: true,
     produces: [],
-    color: "#b8975a",
   },
 };
 
