@@ -1,0 +1,114 @@
+:root {
+  --bg: #12161c;
+  --panel: rgba(18, 22, 28, 0.82);
+  --panel-border: rgba(255, 255, 255, 0.14);
+  --text: #e6e9ee;
+  --accent: #ffd666;
+  /* Touch targets stay at or above the 44px minimum for comfortable thumbs. */
+  --control-size: 46px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Stop iOS from bumping font sizes when the device rotates. */
+  -webkit-text-size-adjust: 100%;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Critical on mobile: we handle every gesture ourselves, so the browser must
+     not steal them for scrolling, pull-to-refresh or double-tap zoom. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The HUD floats above the canvas but lets pointer events through, except on
+   the controls themselves — otherwise the panel would eat map drags. */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) calc(env(safe-area-inset-right, 0px) + 10px)
+    calc(env(safe-area-inset-bottom, 0px) + 10px) calc(env(safe-area-inset-left, 0px) + 10px);
+}
+
+#hud-top {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  /* Portrait phones are too narrow for the clock and the debug readout side by
+     side, so the readout drops to its own row instead of running off-screen. */
+  flex-wrap: wrap;
+}
+
+#hud-bottom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pill {
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(6px);
+}
+
+.ctrl {
+  pointer-events: auto;
+  min-width: var(--control-size);
+  height: var(--control-size);
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  touch-action: manipulation;
+}
+
+.ctrl:active {
+  transform: scale(0.94);
+}
+
+.ctrl.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Paused state is worth shouting about — it changes what every input means. */
+#btn-pause.paused {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(255, 214, 102, 0.16);
+}

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Includes the determinism suite: the same seed and commands must always
+      # produce the same world hash. This is the tripwire that protects replays,
+      # headless balance runs and (later) lockstep multiplayer.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
