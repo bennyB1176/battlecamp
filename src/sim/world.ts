@@ -28,7 +28,13 @@ import { placeBuildingAt, updateConstruction } from "./construction.js";
 import { updateEconomy } from "./economy.js";
 import { ONE, tileCenter } from "./fixed.js";
 import { generateMap } from "./mapgen.js";
-import { findLargestRegion, isBuildable, isPassable, type TileGrid } from "./grid.js";
+import {
+  findLargestRegion,
+  findRegionFrom,
+  isBuildable,
+  isPassable,
+  type TileGrid,
+} from "./grid.js";
 import { updateMovement } from "./movement.js";
 import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from "./pathing.js";
 import { updateProduction } from "./production.js";
@@ -202,40 +208,59 @@ function spawnStartingUnits(world: World, count: number): void {
   // maps have islands and pockets, and a base dropped into one is a match
   // nobody can play — the armies never meet and a small pocket starves the
   // economy besides.
-  const mainland = findLargestRegion(world.grid);
+  let shared = findLargestRegion(world.grid);
 
   world.players.forEach((player, index) => {
     const anchor = anchors[index % anchors.length]!;
-    spawnBase(
+    const home = spawnBase(
       world,
       player.id,
       Math.floor(world.grid.width * anchor[0]),
       Math.floor(world.grid.height * anchor[1]),
       count,
-      mainland,
+      shared,
     );
+
+    // Re-measure from the ground this base actually opens onto, for two
+    // reasons. A three-by-three footprint can sever a narrow neck and split the
+    // map, so the mask computed a moment ago may already be out of date; and
+    // "the largest region" is only the right question for the first player —
+    // after that the right question is "the region the others are in".
+    if (home) shared = findRegionFrom(world.grid, home.tileX, home.tileY);
   });
 }
 
-/** One headquarters plus its opening workers, around a given anchor tile. */
+/**
+ * One headquarters plus its opening workers, around a given anchor tile.
+ *
+ * Returns a walkable tile beside the finished base — the ground this player
+ * actually opens onto — or null if nowhere on the shared region would take a
+ * headquarters.
+ */
 function spawnBase(
   world: World,
   playerId: PlayerId,
   anchorX: number,
   anchorY: number,
   count: number,
-  mainland: Uint8Array,
-): void {
-  const placed = placeStartingHeadquarters(world, playerId, anchorX, anchorY, mainland);
-  if (!placed) return;
+  shared: Uint8Array,
+): { tileX: number; tileY: number } | null {
+  const placed = placeStartingHeadquarters(world, playerId, anchorX, anchorY, shared);
+  if (!placed) return null;
 
   const origin = buildingOrigin(placed);
   const footprint = buildingDef(BuildingType.Headquarters).footprint;
   const centerX = origin.tileX + Math.floor(footprint / 2);
   const centerY = origin.tileY + Math.floor(footprint / 2);
 
-  // Spiral outward from the base for open tiles. `isPassable` already excludes
-  // the headquarters' own footprint, so nobody spawns inside a wall.
+  // The workers all have to come out onto the same ground, and the same ground
+  // the base is judged to be on. Spiralling for merely *passable* tiles once
+  // scattered a player's opening across a lake: half the workforce spawned on
+  // an islet two tiles away and never took a single order.
+  const home = passableEdge(world.grid, origin.tileX, origin.tileY, footprint, shared);
+  if (!home) return null;
+  const reachable = findRegionFrom(world.grid, home.tileX, home.tileY);
+
   const spots: Array<{ x: number; y: number }> = [];
   const maxRadius = Math.max(world.grid.width, world.grid.height);
 
@@ -246,7 +271,7 @@ function spawnBase(
 
         const x = centerX + dx;
         const y = centerY + dy;
-        if (isPassable(world.grid, x, y)) spots.push({ x, y });
+        if (reachable[y * world.grid.width + x] === 1) spots.push({ x, y });
       }
     }
   }
@@ -262,29 +287,63 @@ function spawnBase(
       y: tileCenter(spot.y),
     });
   });
+
+  return home;
 }
 
-/** Find ground near the anchor that will take a headquarters, and place it. */
+/**
+ * How far apart two openings must be, in tiles.
+ *
+ * Below this the two build radii overlap and the match is a coin flip decided
+ * in the first thirty seconds, before either player has made a decision.
+ */
+const MIN_START_SEPARATION_TILES = 22;
+
+/**
+ * Find ground near the anchor that will take a headquarters, and place it.
+ *
+ * Tried twice: first insisting on a fair gap from the bases already down, then
+ * without. Refusing to place a base at all is strictly worse than placing a
+ * cramped one — a player with no headquarters has lost before the match starts,
+ * whereas a close start is merely a bad map.
+ */
 function placeStartingHeadquarters(
   world: World,
   playerId: PlayerId,
   anchorX: number,
   anchorY: number,
-  mainland: Uint8Array,
+  shared: Uint8Array,
+): Entity | null {
+  return (
+    trySiteNear(world, playerId, anchorX, anchorY, shared, MIN_START_SEPARATION_TILES) ??
+    trySiteNear(world, playerId, anchorX, anchorY, shared, 0)
+  );
+}
+
+function trySiteNear(
+  world: World,
+  playerId: PlayerId,
+  anchorX: number,
+  anchorY: number,
+  shared: Uint8Array,
+  minSeparationTiles: number,
 ): Entity | null {
   const footprint = buildingDef(BuildingType.Headquarters).footprint;
   const maxRadius = Math.max(world.grid.width, world.grid.height);
+  const half = Math.floor(footprint / 2);
 
   for (let radius = 0; radius < maxRadius; radius++) {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
 
-        const tileX = anchorX + dx - Math.floor(footprint / 2);
-        const tileY = anchorY + dy - Math.floor(footprint / 2);
+        const tileX = anchorX + dx - half;
+        const tileY = anchorY + dy - half;
         if (!isBuildable(world.grid, tileX, tileY, footprint)) continue;
-        // The site must touch the mainland, or this base is marooned.
-        if (!touchesRegion(world, mainland, tileX, tileY, footprint)) continue;
+        // A worker must be able to stand beside it *and* be on the shared
+        // ground, or this base is marooned.
+        if (!passableEdge(world.grid, tileX, tileY, footprint, shared)) continue;
+        if (!farEnoughFromOtherBases(world, tileX + half, tileY + half, minSeparationTiles)) continue;
 
         const placed = placeBuildingAt(world, playerId, BuildingType.Headquarters, tileX, tileY, {
           // Nothing exists yet to pay for it or to build within reach of.
@@ -300,23 +359,63 @@ function placeStartingHeadquarters(
   return null;
 }
 
-/** Does any tile ringing this footprint belong to the given region? */
-function touchesRegion(
+function farEnoughFromOtherBases(
   world: World,
-  region: Uint8Array,
+  centerTileX: number,
+  centerTileY: number,
+  minSeparationTiles: number,
+): boolean {
+  if (minSeparationTiles <= 0) return true;
+  const minimumSq = minSeparationTiles * minSeparationTiles;
+
+  for (const entity of world.entities.list) {
+    if (entity.typeId !== BuildingType.Headquarters) continue;
+
+    const origin = buildingOrigin(entity);
+    const half = Math.floor(buildingDef(BuildingType.Headquarters).footprint / 2);
+    const dx = origin.tileX + half - centerTileX;
+    const dy = origin.tileY + half - centerTileY;
+    if (dx * dx + dy * dy < minimumSq) return false;
+  }
+
+  return true;
+}
+
+/**
+ * A tile of the given region lying flat against one of this footprint's four
+ * sides, or null if the site does not touch that region at all.
+ *
+ * The corners of the surrounding ring are deliberately excluded, and that
+ * distinction is the whole point. A base can sit on a small island whose corner
+ * kisses the mainland across a diagonal of water: every tile of the ring test
+ * says "mainland", while movement — which refuses a diagonal step unless both
+ * tiles beside it are open — says the two are not connected at all. Two of
+ * eight twenty-minute bot matches ended nil-all that way, both sides mining
+ * peacefully on separate islands.
+ */
+function passableEdge(
+  grid: TileGrid,
   tileX: number,
   tileY: number,
   footprint: number,
-): boolean {
-  for (let dy = -1; dy <= footprint; dy++) {
-    for (let dx = -1; dx <= footprint; dx++) {
-      const x = tileX + dx;
-      const y = tileY + dy;
-      if (x < 0 || y < 0 || x >= world.grid.width || y >= world.grid.height) continue;
-      if (region[y * world.grid.width + x] === 1) return true;
-    }
+  region: Uint8Array,
+): { tileX: number; tileY: number } | null {
+  const sides: Array<[number, number]> = [];
+  for (let offset = 0; offset < footprint; offset++) {
+    sides.push([tileX + offset, tileY - 1]);
+    sides.push([tileX + offset, tileY + footprint]);
+    sides.push([tileX - 1, tileY + offset]);
+    sides.push([tileX + footprint, tileY + offset]);
   }
-  return false;
+
+  for (const [x, y] of sides) {
+    if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) continue;
+    if (region[y * grid.width + x] !== 1) continue;
+    if (!isPassable(grid, x, y)) continue;
+    return { tileX: x, tileY: y };
+  }
+
+  return null;
 }
 
 /**

@@ -29,8 +29,15 @@ import {
   type PlayerId,
 } from "./entities.js";
 import { approachPoint, isWorker } from "./economy.js";
-import { toTileIndex } from "./fixed.js";
-import { isBuildable, isInside, setBlocked } from "./grid.js";
+import { tileCenter, toTileIndex } from "./fixed.js";
+import {
+  findRegionFrom,
+  isBuildable,
+  isInside,
+  isPassable,
+  regionAtLeast,
+  setBlocked,
+} from "./grid.js";
 import { canAfford, debit } from "./resources.js";
 import type { World } from "./world.js";
 
@@ -46,6 +53,7 @@ export const PlacementError = {
   Occupied: "occupied",
   OutOfRange: "out-of-range",
   TooExpensive: "too-expensive",
+  Severs: "severs",
 } as const;
 
 export type PlacementErrorKind = (typeof PlacementError)[keyof typeof PlacementError];
@@ -122,12 +130,63 @@ export function canPlace(
     return { ok: false, error: PlacementError.OutOfRange };
   }
 
+  // Checked before the price, so a player is told the site is impossible rather
+  // than being told to come back with more wood for a site that will never work.
+  if (seversMap(world, tileX, tileY, def.footprint)) {
+    return { ok: false, error: PlacementError.Severs };
+  }
+
   const player = world.players[playerId];
   if (!player || !canAfford(player, def.cost)) {
     return { ok: false, error: PlacementError.TooExpensive };
   }
 
   return { ok: true };
+}
+
+/**
+ * Would this footprint close the last route between two parts of the map?
+ *
+ * A building is not a wall. Allowing one to become a wall costs more than it
+ * sounds: three of eight twenty-minute bot matches ended nil-all with both
+ * economies humming, because a barracks had been dropped across a two-tile neck
+ * and neither army could ever reach the other again. Whether a player *should*
+ * be able to seal a choke is a fair question for a later milestone; a match
+ * nobody can win is not a matter of taste.
+ *
+ * Any severing has to separate two tiles adjacent to the footprint — everywhere
+ * else the map is untouched. So it is enough to walk outward from one of them
+ * and check the rest are still there: one flood fill, and only on placement.
+ */
+function seversMap(world: World, tileX: number, tileY: number, footprint: number): boolean {
+  const neighbours: Array<[number, number]> = [];
+  for (let dy = -1; dy <= footprint; dy++) {
+    for (let dx = -1; dx <= footprint; dx++) {
+      const insideX = dx >= 0 && dx < footprint;
+      const insideY = dy >= 0 && dy < footprint;
+      if (insideX && insideY) continue;
+
+      const x = tileX + dx;
+      const y = tileY + dy;
+      if (isPassable(world.grid, x, y)) neighbours.push([x, y]);
+    }
+  }
+
+  if (neighbours.length < 2) return false;
+
+  const [startX, startY] = neighbours[0]!;
+  const reachable = findRegionFrom(world.grid, startX, startY, {
+    tileX,
+    tileY,
+    size: footprint,
+  });
+
+  for (let index = 1; index < neighbours.length; index++) {
+    const [x, y] = neighbours[index]!;
+    if (reachable[y * world.grid.width + x] !== 1) return true;
+  }
+
+  return false;
 }
 
 export interface PlaceOptions {
@@ -184,8 +243,69 @@ export function placeBuildingAt(
   // Routes that ran through this ground are now wrong.
   world.terrainDirty = true;
 
+  evictUnits(world, entity);
+
   return entity;
 }
+
+/**
+ * Move anyone standing where the building just went.
+ *
+ * Nothing stops a player — or a bot — from putting a barracks down on top of
+ * their own workers, and movement will not carry a unit out of solid ground
+ * once it is in there: every step is refused, so it is walled in for good. In a
+ * headless match this showed up as an opponent that could not be finished off,
+ * because the last two units were sealed inside their own building where no
+ * enemy could reach them.
+ */
+function evictUnits(world: World, building: Entity): void {
+  const origin = buildingOrigin(building);
+  const footprint = buildingDef(building.typeId as BuildingTypeId).footprint;
+
+  for (const entity of world.entities.list) {
+    if (isBuilding(entity)) continue;
+
+    const tileX = toTileIndex(entity.x);
+    const tileY = toTileIndex(entity.y);
+    const insideX = tileX >= origin.tileX && tileX < origin.tileX + footprint;
+    const insideY = tileY >= origin.tileY && tileY < origin.tileY + footprint;
+    if (!insideX || !insideY) continue;
+
+    const spot = nearestOpenTile(world, tileX, tileY);
+    if (!spot) continue;
+
+    entity.x = tileCenter(spot.tileX);
+    entity.y = tileCenter(spot.tileY);
+    entity.prevX = entity.x;
+    entity.prevY = entity.y;
+  }
+}
+
+/** The closest walkable tile with room to move on from, spiralling outward. */
+function nearestOpenTile(
+  world: World,
+  fromX: number,
+  fromY: number,
+): { tileX: number; tileY: number } | null {
+  for (let radius = 1; radius <= 6; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+
+        const tileX = fromX + dx;
+        const tileY = fromY + dy;
+        if (!isPassable(world.grid, tileX, tileY)) continue;
+        // Somewhere with a way out, not the next dead end along.
+        if (!regionAtLeast(world.grid, tileX, tileY, EVICTION_ROOM_TILES)) continue;
+        return { tileX, tileY };
+      }
+    }
+  }
+  return null;
+}
+
+/** Open ground an evicted unit must be able to reach from where it is put. */
+const EVICTION_ROOM_TILES = 8;
 
 function footprintTiles(tileX: number, tileY: number, footprint: number): Array<{ tileX: number; tileY: number }> {
   const tiles: Array<{ tileX: number; tileY: number }> = [];

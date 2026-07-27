@@ -19,7 +19,7 @@ import {
   isWithinBuildRadius,
 } from "../src/sim/construction.js";
 import { addEntity, isComplete, type Entity } from "../src/sim/entities.js";
-import { fromTiles } from "../src/sim/fixed.js";
+import { fromTiles, toTiles } from "../src/sim/fixed.js";
 import { createGrid, isPassable, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource } from "../src/sim/resources.js";
 import { createWorld, tickWorld, type World } from "../src/sim/world.js";
@@ -116,6 +116,36 @@ describe("placement rules", () => {
     expect(canPlace(world, 0, BuildingType.Depot, -1, 5).ok).toBe(false);
   });
 
+  it("refuses a site that would cut the map in two", () => {
+    // Three of eight twenty-minute bot matches ended nil-all because of this:
+    // a barracks dropped across a two-tile neck sealed the only route between
+    // the two halves of the map. Both economies then ran perfectly, forever,
+    // with no way to reach each other. Whatever else a building is, it must not
+    // be a wall across the world.
+    const { world } = baseWorld();
+    // A wall of water across the whole map with a two-tile gate in it, and the
+    // headquarters near enough that the gate is inside its build radius.
+    for (let tileX = 0; tileX < world.grid.width; tileX++) {
+      if (tileX === 4 || tileX === 5) continue;
+      setTerrain(world.grid, tileX, 12, Terrain.Water);
+    }
+
+    expect(canPlace(world, 0, BuildingType.Depot, 4, 12).error).toBe(PlacementError.Severs);
+  });
+
+  it("allows a site beside a gap it does not close", () => {
+    // The rule must bite only when the building is the thing doing the cutting.
+    const { world } = baseWorld();
+    // The same wall, but with a gate wide enough that a 2x2 depot leaves a way
+    // through beside it.
+    for (let tileX = 0; tileX < world.grid.width; tileX++) {
+      if (tileX >= 3 && tileX <= 8) continue;
+      setTerrain(world.grid, tileX, 12, Terrain.Water);
+    }
+
+    expect(canPlace(world, 0, BuildingType.Depot, 4, 12).ok).toBe(true);
+  });
+
   it("refuses what the player cannot afford", () => {
     const { world } = baseWorld();
     world.players[0]!.resources[Resource.Wood] = 0;
@@ -144,6 +174,23 @@ describe("buildings occupy ground", () => {
     expect(isPassable(world.grid, 5, 5)).toBe(false);
     expect(isPassable(world.grid, 7, 7)).toBe(false);
     expect(isPassable(world.grid, 8, 8)).toBe(true);
+  });
+
+  it("moves anyone standing where it goes up", () => {
+    // A building put down on top of a unit walls that unit in permanently:
+    // every step out is refused, because every step out starts inside solid
+    // ground. A headless match ended in a draw with the loser's last two units
+    // sealed inside their own barracks, unkillable and unable to move.
+    const { world } = baseWorld();
+    const caught = worker(world, 9, 5);
+
+    placeBuildingAt(world, 0, BuildingType.Depot, 9, 5, { free: true, finished: true });
+
+    const tileX = Math.floor(toTiles(caught.x));
+    const tileY = Math.floor(toTiles(caught.y));
+    expect(isPassable(world.grid, tileX, tileY), "the worker was left inside the building").toBe(
+      true,
+    );
   });
 
   it("marks terrain dirty so cached routes are thrown away", () => {

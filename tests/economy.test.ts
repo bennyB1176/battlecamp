@@ -102,6 +102,57 @@ describe("gather orders", () => {
   });
 });
 
+describe("deposits nobody can reach", () => {
+  /** A world split down the middle by water, with woods on the far side. */
+  function dividedWorld(): World {
+    const world = blankWorld();
+    for (let tileY = 0; tileY < world.grid.height; tileY++) {
+      setTerrain(world.grid, 20, tileY, Terrain.Water);
+    }
+    forest(world, 30, 6);
+    return world;
+  }
+
+  it("gives up on a deposit across the water instead of standing there forever", () => {
+    // The failure this prevents is silent and total: movement refuses a goal it
+    // cannot route to and clears it, gathering notices no goal and sets the same
+    // one again, and the worker stands pinned for the rest of the match. A whole
+    // bot economy died this way — thirteen workers, none of them moving.
+    const world = dividedWorld();
+    const unit = worker(world, 6, 6);
+
+    gather(world, unit, 30, 6);
+    for (let i = 0; i < 60; i++) tickWorld(world);
+
+    expect(unit.job).toBeNull();
+    expect(unit.goalX).toBeNull();
+  });
+
+  it("switches to a reachable deposit rather than one across the water", () => {
+    const world = dividedWorld();
+    forest(world, 14, 6);
+    const unit = worker(world, 6, 6);
+
+    gather(world, unit, 30, 6);
+    for (let i = 0; i < 60; i++) tickWorld(world);
+
+    // Re-seeking must not simply walk the search sideways into more of the same
+    // unreachable patch, so the near side is the only acceptable answer.
+    expect(unit.job?.nodeX).toBe(14);
+  });
+
+  it("leaves a reachable deposit alone", () => {
+    const world = dividedWorld();
+    forest(world, 14, 6);
+    const unit = worker(world, 6, 6);
+
+    gather(world, unit, 14, 6);
+    for (let i = 0; i < 60; i++) tickWorld(world);
+
+    expect(unit.job?.nodeX).toBe(14);
+  });
+});
+
 describe("the round trip", () => {
   it("harvests a load, carries it home, and banks it", () => {
     const world = blankWorld();

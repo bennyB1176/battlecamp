@@ -24,6 +24,7 @@ import { cancelLastQueued, queueUnit, setRallyPoint } from "./production.js";
 import { assignAttackMove, assignAttackTarget, clearCombatOrders } from "./combat.js";
 import { assignBuildJob, placeBuildingAt } from "./construction.js";
 import { assignGatherJob, isWorker } from "./economy.js";
+import { toTileIndex } from "./fixed.js";
 import { isInside } from "./grid.js";
 import { clampGoalToMap, snapGoalToReachable } from "./movement.js";
 
@@ -152,7 +153,12 @@ export function applyCommand(world: World, command: Command): void {
       return;
     }
     case "move": {
-      const target = snapGoalToReachable(world.grid, command.targetX, command.targetY);
+      const target = snapGoalToReachable(
+        world.grid,
+        command.targetX,
+        command.targetY,
+        orderedFrom(world, command.entityIds, command.playerId),
+      );
 
       for (const entityId of command.entityIds) {
         const entity = getEntity(world.entities, entityId);
@@ -183,7 +189,12 @@ export function applyCommand(world: World, command: Command): void {
       return;
     }
     case "attack-move": {
-      const target = snapGoalToReachable(world.grid, command.targetX, command.targetY);
+      const target = snapGoalToReachable(
+        world.grid,
+        command.targetX,
+        command.targetY,
+        orderedFrom(world, command.entityIds, command.playerId),
+      );
       for (const entityId of command.entityIds) {
         const entity = getEntity(world.entities, entityId);
         if (!entity || entity.owner !== command.playerId) continue;
@@ -259,4 +270,23 @@ export function applyCommand(world: World, command: Command): void {
       throw new Error(`Unhandled command: ${JSON.stringify(unhandled)}`);
     }
   }
+}
+
+/**
+ * The tile the ordered units are standing on, for judging what "reachable"
+ * means for this order. The first one found is representative — a selection is
+ * normally a group standing together, and if it is not, the stragglers still
+ * get the best answer available for the bulk of it.
+ */
+function orderedFrom(
+  world: World,
+  entityIds: readonly EntityId[],
+  playerId: PlayerId,
+): { tileX: number; tileY: number } | undefined {
+  for (const entityId of entityIds) {
+    const entity = getEntity(world.entities, entityId);
+    if (!entity || entity.owner !== playerId) continue;
+    return { tileX: toTileIndex(entity.x), tileY: toTileIndex(entity.y) };
+  }
+  return undefined;
 }
