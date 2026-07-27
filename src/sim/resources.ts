@@ -100,6 +100,21 @@ export function resourceOfTerrain(terrain: TerrainType): ResourceKind | null {
   }
 }
 
+/** The terrain a raw resource is dug out of — the inverse of `resourceOfTerrain`. */
+export function terrainOfResource(kind: ResourceKind): TerrainType {
+  switch (kind) {
+    case Resource.Wood:
+      return Terrain.Forest;
+    case Resource.Stone:
+      return Terrain.Stone;
+    case Resource.Ore:
+      return Terrain.Ore;
+    default:
+      // Refined goods are never in the ground; asking is a caller's mistake.
+      throw new Error(`${RESOURCE_NAMES[kind]} liegt nicht im Boden`);
+  }
+}
+
 export interface Player {
   readonly id: PlayerId;
   resources: Record<ResourceKind, number>;

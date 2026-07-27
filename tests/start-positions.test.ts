@@ -17,13 +17,23 @@ import { BuildingType } from "../src/content/buildings.js";
 import { UnitType } from "../src/content/units.js";
 import { buildingOrigin, isBuilding, isUnit, type Entity } from "../src/sim/entities.js";
 import { dist, ONE, toTiles } from "../src/sim/fixed.js";
-import { isPassable } from "../src/sim/grid.js";
+import { isPassable, terrainAt } from "../src/sim/grid.js";
+import { RAW_KINDS, resourceOfTerrain, RESOURCE_NAMES } from "../src/sim/resources.js";
 import { computeFlowField, isReachable } from "../src/sim/pathing.js";
 import { createWorld, type World } from "../src/sim/world.js";
 
 // Seeds 1 to 8 are the ones the headless match runner uses, so a map that
 // cannot be played shows up here rather than as a nil-all twenty minutes later.
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 42, 20260727, 31337];
+
+/**
+ * How far a worker can reasonably be sent from home for a seam.
+ *
+ * Beyond this the round trip costs more than the load is worth, and the answer
+ * stops being "walk further" and becomes "build a depot out there" — which is a
+ * decision, not an opening.
+ */
+const REACH_TILES = 14;
 
 function headquartersOf(world: World, playerId: number): Entity | undefined {
   return world.entities.list.find(
@@ -140,24 +150,37 @@ describe("two-player starts", () => {
     }
   });
 
-  it.each(SEEDS)("puts resources within reach of both starts on seed %i", (seed) => {
-    // A base that opens with no wood nearby has lost before the first order.
+  it.each(SEEDS)("puts every raw resource within reach of both starts on seed %i", (seed) => {
+    // "Some deposit nearby" is not enough, and believing it was cost an hour.
+    // Forest is terrain and is everywhere; stone comes in a handful of scattered
+    // clusters, and on most maps there was none within walking distance of
+    // either base. Nearly every building in the game costs stone, so both bots
+    // banked thousands of ore they could never spend, never built a second
+    // refinery, and looked broken — while the fault was in the map.
     const world = createWorld({ seed, width: 64, height: 64 });
 
     for (const playerId of [0, 1]) {
-      const hq = headquartersOf(world, playerId)!;
-      const origin = buildingOrigin(hq);
+      const origin = buildingOrigin(headquartersOf(world, playerId)!);
+      const nearby = new Map<number, number>();
 
-      let found = 0;
-      for (let dy = -14; dy <= 14; dy++) {
-        for (let dx = -14; dx <= 14; dx++) {
-          const index = (origin.tileY + dy) * world.grid.width + (origin.tileX + dx);
-          if (index < 0 || index >= world.deposits.length) continue;
-          if (world.deposits[index]! > 0) found++;
+      for (let dy = -REACH_TILES; dy <= REACH_TILES; dy++) {
+        for (let dx = -REACH_TILES; dx <= REACH_TILES; dx++) {
+          const tileX = origin.tileX + dx;
+          const tileY = origin.tileY + dy;
+          const kind = resourceOfTerrain(terrainAt(world.grid, tileX, tileY));
+          if (kind === null) continue;
+          const index = tileY * world.grid.width + tileX;
+          if ((world.deposits[index] ?? 0) <= 0) continue;
+          nearby.set(kind, (nearby.get(kind) ?? 0) + 1);
         }
       }
 
-      expect(found, `player ${playerId} starts with nothing to harvest`).toBeGreaterThan(10);
+      for (const kind of RAW_KINDS) {
+        expect(
+          nearby.get(kind) ?? 0,
+          `seed ${seed}: player ${playerId} has no ${RESOURCE_NAMES[kind]} within ${REACH_TILES} tiles`,
+        ).toBeGreaterThan(2);
+      }
     }
   });
 });

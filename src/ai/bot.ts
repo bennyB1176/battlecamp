@@ -32,7 +32,8 @@ import type { Command } from "../sim/commands.js";
 import { canPlace } from "../sim/construction.js";
 import { computeFlowField, isReachable, type FlowField } from "../sim/pathing.js";
 import { isWorker } from "../sim/economy.js";
-import { isStarving } from "../sim/food.js";
+import { foodDemand, foodSupply } from "../sim/food.js";
+import { isPowered } from "../sim/power.js";
 import {
   buildingOrigin,
   getEntity,
@@ -48,9 +49,9 @@ import { isPassable, terrainAt } from "../sim/grid.js";
 import { snapGoalToReachable } from "../sim/movement.js";
 import {
   canAfford,
+  RAW_KINDS,
   resourceOfTerrain,
   Resource,
-  RESOURCE_KINDS,
   type Player,
   type ResourceKind,
 } from "../sim/resources.js";
@@ -154,6 +155,17 @@ export interface Bot {
 
 /** Ticks a site may sit at the same amount of work before it is written off. */
 const STALL_TICKS = 600;
+
+/** How lopsided the stocks must be before a worker is moved to fix it. */
+const REBALANCE_GAP = 200;
+
+/**
+ * Spare food the bot wants in hand before it stops building farms.
+ *
+ * Roughly four soldiers' worth: enough that the next batch out of the barracks
+ * is fed on arrival rather than starting the whole army starving.
+ */
+const FOOD_HEADROOM = 8;
 
 interface ReachCache {
   readonly tick: number;
@@ -283,6 +295,8 @@ function runEconomy(
     });
   }
 
+  rebalance(bot, world, commands, workers);
+
   if (workers.length >= bot.profile.workerTarget) return;
 
   const hq = buildings.find(
@@ -303,6 +317,54 @@ function runEconomy(
     playerId: bot.playerId,
     buildingId: hq.id,
     unitType: UnitType.Worker,
+  });
+}
+
+/**
+ * Move one worker at a time off a resource there is plenty of, onto the one
+ * holding everything up.
+ *
+ * Without this the opening assignment decides the whole match. Workers keep the
+ * job they were given — deliberately, so a lumberjack does not wander into a
+ * mine and quietly change what the economy produces — and idle workers are the
+ * only ones this layer ever touches. Wood is what a spiral search finds first,
+ * so wood is what nearly everyone ended up on: eleven hundred wood banked, ten
+ * stone, and a smelter the bot could never afford standing between it and the
+ * entire refining chain.
+ *
+ * One worker per think, so the workforce drifts toward the shortage instead of
+ * stampeding between seams and spending the whole match walking.
+ */
+function rebalance(bot: Bot, world: World, commands: Command[], workers: Entity[]): void {
+  const player = world.players[bot.playerId];
+  if (!player) return;
+
+  const scarce = scarcestResource(bot, world);
+  const plentiful = RAW_KINDS.reduce((most, kind) =>
+    player.resources[kind] > player.resources[most] ? kind : most,
+  );
+
+  // Only when the gap is real. Shuffling workers over a rounding difference
+  // would cost more in walking than it ever earned.
+  if (player.resources[plentiful] < player.resources[scarce] + REBALANCE_GAP) return;
+
+  const spare = workers.find(
+    (worker) =>
+      worker.job !== null &&
+      worker.buildTargetId === null &&
+      resourceOfTerrain(terrainAt(world.grid, worker.job.nodeX, worker.job.nodeY)) === plentiful,
+  );
+  if (!spare) return;
+
+  const node = nearestDeposit(world, reachableFrom(bot, world, spare), spare, scarce);
+  if (!node || resourceOfTerrain(terrainAt(world.grid, node.tileX, node.tileY)) !== scarce) return;
+
+  commands.push({
+    type: "gather",
+    playerId: bot.playerId,
+    entityIds: [spare.id],
+    tileX: node.tileX,
+    tileY: node.tileY,
   });
 }
 
@@ -334,14 +396,36 @@ function runInfrastructure(
     buildings.some((building) => building.typeId === typeId);
 
   const wanted: BuildingTypeId[] = [];
-  // Food first, and before the barracks: the one cost that keeps arriving is
-  // also the one a bot can ignore all match while still looking busy. Left out,
-  // this bot raised eighteen workers and an army, starved the lot, and started
-  // losing to the easy setting — which stayed small enough to feed itself by
-  // accident. Only ever one farm at a time, so being hungry cannot turn into
-  // farming instead of playing.
-  if (isStarving(world, bot.playerId)) wanted.push(BuildingType.Farm);
+  const headroom = foodSupply(world, bot.playerId) - foodDemand(world, bot.playerId);
+
+  // Hunger jumps the queue; being merely close to hungry does not. That
+  // distinction is load-bearing: the bot builds one thing at a time, so a
+  // condition at the head of this list that is nearly always true starves
+  // everything behind it. With the pre-emptive farm first, the smelter never
+  // came up at all — ten minutes, eighteen workers, and the refining chain
+  // never once touched.
+  if (headroom < 0) wanted.push(BuildingType.Farm);
+
   if (!has(BuildingType.Barracks)) wanted.push(BuildingType.Barracks);
+
+  // A smelter once there is a barracks to spend the steel at. Without one the
+  // whole refining chain is dead content in every bot match: thousands of ore
+  // banked that can never become anything, and the heaviest unit in the game
+  // out of reach for the entire twenty minutes.
+  if (has(BuildingType.Barracks) && !has(BuildingType.Smelter)) wanted.push(BuildingType.Smelter);
+
+  // A plant only when something of its own is actually running cold. Building
+  // one on principle would be wasted resources on a base that never left its
+  // own yard.
+  if (buildings.some((building) => isComplete(building) && !isPowered(world, building))) {
+    wanted.push(BuildingType.PowerPlant);
+  }
+
+  // The pre-emptive farm, once the essentials are in hand. Waiting for the
+  // larder to be empty means always being one farm behind — by the time the
+  // field is ploughed the army is down to a fifth of its health.
+  if (headroom < FOOD_HEADROOM) wanted.push(BuildingType.Farm);
+
   if (bot.profile.buildsTowers && !has(BuildingType.Tower)) wanted.push(BuildingType.Tower);
 
   for (const typeId of wanted) {
@@ -548,8 +632,10 @@ function scarcestResource(bot: Bot, world: World): ResourceKind {
   const player = world.players[bot.playerId];
   if (!player) return Resource.Wood;
 
+  // Raw kinds only. Steel is always the thinnest stock early on, and sending a
+  // worker off to look for a steel mine is a search that can never succeed.
   let scarcest: ResourceKind = Resource.Wood;
-  for (const kind of RESOURCE_KINDS) {
+  for (const kind of RAW_KINDS) {
     if (player.resources[kind] < player.resources[scarcest]) scarcest = kind;
   }
   return scarcest;

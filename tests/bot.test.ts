@@ -24,6 +24,7 @@ import { fromTiles } from "../src/sim/fixed.js";
 import { createGrid, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource, stockDeposits } from "../src/sim/resources.js";
 import { isStarving } from "../src/sim/food.js";
+import { isPowered } from "../src/sim/power.js";
 import { createWorld, tickWorld, type World } from "../src/sim/world.js";
 
 const BOT_PLAYER = 1;
@@ -570,5 +571,55 @@ describe("feeding its own army", () => {
       (entity) => isBuilding(entity) && entity.typeId === BuildingType.Farm,
     ).length;
     expect(farms, "it farmed instead of playing").toBeLessThan(4);
+  });
+});
+
+describe("using the whole economy", () => {
+  it("builds a smelter, so steel and vehicles exist at all", () => {
+    // Without one the refining chain is dead content in every bot match: the
+    // bot banks thousands of ore it can never turn into anything, and the
+    // heaviest unit in the game is unreachable for the whole twenty minutes.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+
+    play(world, bot, 4000);
+
+    expect(
+      owned(world, BOT_PLAYER).some(
+        (entity) => isBuilding(entity) && entity.typeId === BuildingType.Smelter,
+      ),
+      "the bot never built a smelter",
+    ).toBe(true);
+  });
+
+  it("stays ahead of its own appetite instead of catching up", () => {
+    // Building a farm only once already starving means always being a farm
+    // behind: the army is at a fifth health by the time the field is ploughed.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+
+    let hungryTicks = 0;
+    for (let tick = 0; tick < 4000; tick++) {
+      tickWorld(world, updateBot(bot, world));
+      if (isStarving(world, BOT_PLAYER)) hungryTicks++;
+    }
+
+    // Some hunger is honest — it is what tells the bot to build. Living in it
+    // is not.
+    expect(hungryTicks / 4000, "the bot spent most of the match starving").toBeLessThan(0.25);
+  });
+
+  it("puts up a power plant once something of its own is off the grid", () => {
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+
+    play(world, bot, 5000);
+
+    const buildings = owned(world, BOT_PLAYER).filter(isBuilding);
+    const cold = buildings.filter((entity) => !isPowered(world, entity));
+    expect(
+      cold.length,
+      `${cold.length} of ${buildings.length} of its buildings are running at half speed`,
+    ).toBe(0);
   });
 });

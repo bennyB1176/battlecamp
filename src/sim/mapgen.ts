@@ -129,7 +129,14 @@ export function generateMap(rng: Rng, width: number, height: number): TileGrid {
 
   const area = width * height;
   scatterClusters(grid, rng, Terrain.Ore, Math.max(4, Math.round(area / 900)), 2, 4);
-  scatterClusters(grid, rng, Terrain.Stone, Math.max(3, Math.round(area / 1400)), 2, 3);
+  // More stone than ore, and it used to be far less. Stone is in the price of
+  // nearly every building in the game, while ore only buys units — so the map
+  // has to hold more of it, not less. At the old density a sixty-four square map
+  // produced ten to twenty-eight quarry tiles against a thousand of forest, and
+  // most starts simply could not afford a second refinery. The bots banked
+  // thousands of ore they could never spend and looked broken for an hour before
+  // the fault turned out to be here.
+  scatterClusters(grid, rng, Terrain.Stone, Math.max(6, Math.round(area / 500)), 2, 4);
 
   return grid;
 }

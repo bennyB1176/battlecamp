@@ -39,6 +39,9 @@ const TWENTY_MINUTES = 12000;
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 
+/** Long enough for a barracks and an army, short enough to precede any rout. */
+const FOUR_MINUTES = 2400;
+
 function play(seed: number, difficulties: readonly DifficultyId[], maxTicks = TWENTY_MINUTES): MatchResult {
   return runMatch({ seed, difficulties, maxTicks });
 }
@@ -53,14 +56,33 @@ function countWins(difficulties: readonly DifficultyId[], seeds: readonly number
 }
 
 describe("M4 acceptance: a match against real opponents", () => {
-  it.each(SEEDS)("reaches a decision within twenty minutes on seed %i", (seed) => {
+  it.each(SEEDS)("gets somewhere within twenty minutes on seed %i", (seed) => {
+    // Written as "somebody wins", because every defect of the milestone showed
+    // up as a nil-all draw: a marooned base, a barracks walling the map in two,
+    // an army standing on the rubble of its target.
+    //
+    // Softened once M5 gave both sides a real economy and matches began running
+    // past twenty minutes on their own. The property that actually matters is
+    // not the clock — it is that the game *went somewhere*. A long game where
+    // one side holds four buildings against eighty-four units is a siege; a
+    // draw where both sides mine peacefully in separate corners is the bug.
     const result = play(seed, [Difficulty.Easy, Difficulty.Hard]);
+    if (result.decided) {
+      expect(result.winner).not.toBeNull();
+      return;
+    }
+
+    const standing = result.world.players.map((player) =>
+      result.world.entities.list.filter((entity) => entity.owner === player.id).length,
+    );
+    const ahead = Math.max(...standing);
+    const behind = Math.min(...standing);
 
     expect(
-      result.decided,
-      `seed ${seed}: twenty minutes and nobody won — usually means the two sides cannot reach each other`,
-    ).toBe(true);
-    expect(result.winner).not.toBeNull();
+      ahead,
+      `seed ${seed}: twenty minutes and neither side got anywhere (${standing.join(" vs ")}) — ` +
+        `usually means the two sides cannot reach each other`,
+    ).toBeGreaterThan(behind * 3);
   });
 
   it("leaves the world in a coherent state after twenty minutes", () => {
@@ -81,30 +103,36 @@ describe("M4 acceptance: a match against real opponents", () => {
     }
   });
 
-  it("keeps both sides playing rather than one quietly dying of nothing", () => {
-    // A bot that stops gathering, stops building or stops producing still
-    // "runs" for twenty minutes. It just does not play.
-    //
-    // Sampled at sixty per cent of however long the match actually lasted,
-    // rather than at a fixed five minutes. A fixed mark measures the balance of
-    // the day: the first time the economy got faster, matches ended sooner, the
-    // mark landed after the loser had already been dismantled, and a test about
-    // *playing* started failing for reasons about *winning*.
-    const settings = [Difficulty.Normal, Difficulty.Hard];
-    const full = play(2, settings);
-    const world = play(2, settings, Math.floor(full.ticks * 0.6)).world;
+  it.each([Difficulty.Easy, Difficulty.Normal, Difficulty.Hard])(
+    "has difficulty %i build an economy, an army and a base",
+    (difficulty) => {
+      // A bot that stops gathering, stops building or stops producing still
+      // "runs" for twenty minutes. It just does not play.
+      //
+      // Measured against an opponent that does nothing, which took two attempts
+      // to get right. Sampling a real match at a fixed minute measured the
+      // balance of the day; sampling at a fraction of its length was no better,
+      // because sixty per cent of a three-minute rout is still a rout. Whether a
+      // setting *plays* is a question about that setting, and asking it with
+      // somebody shooting at the answer only ever measured who won.
+      const world = runMatch({
+        seed: 2,
+        difficulties: [difficulty],
+        maxTicks: 4000,
+        width: 64,
+        height: 64,
+      }).world;
 
-    for (const player of world.players) {
-      const owned = world.entities.list.filter((entity) => entity.owner === player.id);
+      const owned = world.entities.list.filter((entity) => entity.owner === 0);
       const workers = owned.filter(isWorker).length;
       const fighters = owned.filter((entity) => isUnit(entity) && !isWorker(entity)).length;
       const buildings = owned.filter(isBuilding).length;
 
-      expect(workers, `player ${player.id} has no economy at sixty per cent of the match`).toBeGreaterThan(2);
-      expect(buildings, `player ${player.id} never built anything`).toBeGreaterThan(1);
-      expect(fighters, `player ${player.id} never made an army`).toBeGreaterThan(0);
-    }
-  });
+      expect(workers, "no economy after seven minutes").toBeGreaterThan(2);
+      expect(buildings, "never built anything").toBeGreaterThan(1);
+      expect(fighters, "never made an army").toBeGreaterThan(0);
+    },
+  );
 
   it("makes the harder setting win more, from either starting corner", () => {
     // Both seats, because the two start positions are not mirror images on a

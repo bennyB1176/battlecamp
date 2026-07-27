@@ -14,6 +14,8 @@ import {
 } from "../src/sim/grid.js";
 import { generateMap } from "../src/sim/mapgen.js";
 import { createRng } from "../src/sim/rng.js";
+import { RAW_KINDS, resourceOfTerrain, RESOURCE_NAMES } from "../src/sim/resources.js";
+import { createWorld, type World } from "../src/sim/world.js";
 
 describe("tile grid", () => {
   it("treats out-of-bounds as impassable rock so units cannot leave the map", () => {
