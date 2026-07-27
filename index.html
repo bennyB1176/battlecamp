@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Battlecamp</title>
+    <!-- viewport-fit=cover + safe-area padding below keeps the HUD clear of phone notches. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#12161c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS reads its own prefixed variants. With these, "Zum Home-Bildschirm"
+         launches the game without Safari's chrome eating a third of the screen. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Battlecamp" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/ui/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div id="hud-top">
+        <div class="pill" id="clock">0:00</div>
+        <div class="pill" id="stats">–</div>
+      </div>
+
+      <div id="hud-bottom">
+        <button class="ctrl" id="btn-pause" aria-label="Pause">⏸</button>
+        <button class="ctrl speed" data-speed="1">1×</button>
+        <button class="ctrl speed" data-speed="2">2×</button>
+        <button class="ctrl speed" data-speed="4">4×</button>
+        <button class="ctrl" id="btn-center" aria-label="Zentrieren">⌖</button>
+        <!-- Touch has no right mouse button, so box-select needs its own mode. -->
+        <button class="ctrl" id="btn-select" aria-label="Auswahlmodus">⬚</button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

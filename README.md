@@ -1,2 +1,175 @@
-# battlecamp
-Game beween c&amp;c and settlers
+# Battlecamp
+
+Ein 2D-Echtzeit-Strategiespiel zwischen **Command & Conquer** und **Die Siedler**, mit einer Prise
+**StarCraft**. Basis aufbauen, Wirtschaft hochziehen, Armee produzieren, Gegner zerstören — auf dem
+Handy spielbar, Strategie vor Fingerfertigkeit.
+
+**▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
+
+> Status: **M1** — Einheiten laufen. Auswahl per Tippen und Rahmen, Bewegungsbefehle,
+> Flow-Field-Pathfinding, Kollisionsvermeidung. Wirtschaft und Bauen kommen in M2.
+
+## Schnellstart
+
+```bash
+npm install
+npm run dev -- --host   # dann vom Handy im gleichen WLAN öffnen
+```
+
+| Befehl | Zweck |
+| --- | --- |
+| `npm run dev` | Entwicklungsserver mit Hot Reload |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest, inklusive Determinismus- und Abnahme-Suite |
+| `npm run build` | Typecheck + Produktions-Build nach `dist/` |
+| `npm run build:single` | Alles in eine Datei: `dist-single/battlecamp.html` |
+| `npm run scan:secrets` | gitleaks über Arbeitskopie und Historie |
+| `npm run hooks:install` | Pre-commit-Hook aktivieren (optional) |
+
+Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklung.
+
+## Bedienung
+
+| Geste | Wirkung |
+| --- | --- |
+| Ein Finger ziehen | Karte verschieben |
+| Zwei Finger | Zoomen (und verschieben) |
+| Auf eigene Einheit tippen | Einheit auswählen |
+| Auf Gelände tippen (mit Auswahl) | Bewegungsbefehl |
+| Auf Gelände tippen (ohne Auswahl) | Markierung setzen |
+| ⬚ dann ziehen | Auswahlrahmen über mehrere Einheiten |
+| Mausrad | Zoomen (Desktop) |
+| Leertaste / ⏸ | Pause |
+| 1× / 2× / 4× | Zeitraffer |
+
+Auf dem Handy gibt es keine rechte Maustaste, und Ein-Finger-Ziehen ist fürs Verschieben der Karte
+vergeben. Der Auswahlrahmen bekommt deshalb einen eigenen Modus-Knopf, der sich nach der Auswahl
+von selbst wieder ausschaltet.
+
+## Auf dem Handy testen
+
+Drei Wege, je nachdem was du gerade brauchst:
+
+**Im gleichen WLAN** — `npm run dev -- --host`, dann die angezeigte Netzwerk-Adresse am Telefon
+öffnen. Hot Reload inklusive: speichern am Rechner, das Handy lädt neu.
+
+**GitHub Pages** — jeder Push auf `main` baut, testet und veröffentlicht automatisch
+(`.github/workflows/pages.yml`); das Spiel liegt danach unter
+`https://bennyb1176.github.io/battlecamp/`. Einmalig nötig:
+
+> Settings → Pages → Build and deployment → Source: **GitHub Actions**
+
+Nur `main`, nicht jeder Branch: GitHub legt die `github-pages`-Umgebung mit einer Regel an, die
+Deploys auf den Default-Branch beschränkt. Ein Lauf von einem Feature-Branch baut und testet
+sauber und wird dann am Deploy-Tor abgewiesen — ein rotes Kreuz, das nichts über den Code aussagt.
+Für Zwischenstände auf dem Gerät sind die beiden anderen Wege da.
+
+**Eine Datei zum Weitergeben** — `npm run build:single` legt `dist-single/battlecamp.html` an:
+das komplette Spiel in ~24 kB, ohne Server lauffähig. Reicht für AirDrop, Anhang oder itch.io.
+
+Auf iOS lohnt sich „Teilen → Zum Home-Bildschirm": das Manifest startet das Spiel im Vollbild,
+ohne dass Safaris Leisten ein Drittel des Schirms wegnehmen.
+
+## Architektur
+
+Eine Entscheidung prägt alles: **der Simulations-Kern ist strikt vom Rendering getrennt und
+vollständig deterministisch.** Jede Zustandsänderung läuft über ein `Command`, das an einer
+Tick-Grenze angewendet wird — die UI mutiert nichts direkt, ein Bot auch nicht.
+
+```
+src/
+  sim/      deterministischer Kern — kein DOM, keine Wanduhr, kein Math.random
+  content/  reine Daten: Einheiten, Gebäude, Völker, Biome
+  ai/       Bot-Spieler, gibt ausschließlich Commands aus
+  render/   Canvas2D, liest den Zustand nur
+  input/    Touch/Maus → Commands
+  ui/       HUD
+```
+
+Der Sim läuft mit **10 Hz** (fixer Tick), gerendert wird mit Bildwiederholrate und dazwischen
+interpoliert. Das ist der entscheidende Mobile-Trick: die teure Logik läuft sechsmal seltener als
+das Zeichnen.
+
+Was diese Trennung später fast gratis liefert:
+
+- **Bots** benutzen exakt denselben Befehlsweg wie ein Mensch — kein KI-Sonderpfad
+- **Replays** sind Seed + Befehlsliste, also wenige Kilobyte
+- **Regressionstests**: gleicher Seed + gleiche Befehle ⇒ gleicher Zustands-Hash
+- **Lockstep-Multiplayer** ohne Neuschreiben des Kerns
+
+Zwei Testdateien bewachen genau das: `tests/determinism.test.ts` prüft die Reproduzierbarkeit,
+`tests/sim-purity.test.ts` liest den Quelltext von `src/sim` und lässt den Build scheitern, sobald
+dort `Math.random()`, `Date.now()` oder DOM-Zugriffe auftauchen.
+
+Positionen laufen über die Fixed-Point-Helfer in `src/sim/fixed.ts`: JavaScript-Fließkomma ist
+zwischen Engines nicht bitgenau, und diese Vorsorge hält den späteren Multiplayer-Umbau auf eine
+Datei begrenzt.
+
+### Warum hundert Einheiten bezahlbar sind
+
+Drei Entscheidungen tragen die Masse:
+
+- **Flow-Fields statt A\* pro Einheit** (`src/sim/pathing.ts`). Ein Dijkstra-Lauf vom *Ziel* aus
+  beschriftet jede Kachel mit ihrem günstigsten Schritt; beliebig viele Einheiten folgen den Pfeilen
+  für den Preis eines Array-Zugriffs. Hundert Einheiten auf einen Punkt zu schicken kostet eine
+  Suche, nicht hundert. Ein Test hält das fest: nach einem Gruppenbefehl darf der Cache genau ein
+  Feld enthalten.
+- **Spatial-Hash statt Alle-gegen-alle** (`src/sim/spatial.ts`). Nachbarschaftsabfragen für
+  Trennung — später für Kampf — würden sonst quadratisch wachsen.
+- **Auswahl gehört zur Ansicht, nicht zur Welt** (`src/input/selection.ts`). Was ich markiert habe,
+  geht die Simulation nichts an; sonst müssten Replays es aufzeichnen und Multiplayer es abgleichen.
+
+Gemessen im Browser mit Touch-Emulation: 212 Einheiten bei 60 fps, Simulationsschritt 0,4 ms gegen
+ein Budget von 8 ms.
+
+## Sicherheit
+
+`npm run scan:secrets` prüft **Arbeitskopie und komplette Git-Historie** auf versehentlich
+committete Zugangsdaten. Ein Schlüssel, der einmal committet und später „entfernt" wurde, steckt
+weiterhin in jedem Klon — deshalb reicht der aktuelle Stand als Prüfziel nicht.
+
+CI führt exakt dasselbe Skript aus, damit ein grüner lokaler Lauf und eine grüne Pipeline nicht
+zweierlei bedeuten können. Die gitleaks-Binärdatei ist auf Version **und SHA-256** festgenagelt:
+ein Sicherheitswerkzeug per `latest` über das Netz zu ziehen hieße, ausgerechnet dem Prüfer blind
+zu vertrauen.
+
+Optional lokal: `npm run hooks:install` aktiviert einen Pre-commit-Hook, der die gestageten
+Änderungen prüft. Er fängt einen Fund an der einzigen Stelle ab, an der er noch gratis zu beheben
+ist — vor dem Commit. Danach hilft nur noch: **Schlüssel rotieren.** Historie umschreiben macht
+einen geteilten Schlüssel nicht ungeteilt.
+
+## Spielkonzept
+
+**Wirtschaft** — der Regler zwischen den beiden Vorbildern steht in der Mitte: Veredelungsketten wie
+bei den Siedlern (Erz + Kohle → Stahl → Panzer), aber ohne Träger-Logistik. Arbeiter pendeln zwischen
+Vorkommen und Lager, Veredelungsgebäude ziehen aus einem globalen Pool.
+
+Zwei Regeln erzwingen echte Wirtschaftsentscheidungen statt Dauer-Rush:
+
+- **Nahrung ist laufender Unterhalt**, nicht nur Baukosten — eine Armee ohne Basis verhungert
+- **Energie wirkt im Radius** — Basis-Layout wird zur Entscheidung, Kraftwerke zu lohnenden Zielen
+
+**Kampf** — Tiefe über eine Schadens-/Rüstungsmatrix (normal / explosiv / durchschlagend gegen
+leicht / mittel / schwer / Gebäude) statt über Grafik.
+
+**Völker** — Union (ausgewogen, Fahrzeuge), Klan (wirtschaftsstark, defensiv), Brut (schnell, billig,
+organisch). Data-driven definiert; ein neues Volk ist im Wesentlichen eine Content-Datei.
+
+**Welten** — prozedurale Karten mit Biomen (Grasland, Wüste, Tundra, Ödland) und
+rotationssymmetrischen Startpositionen.
+
+## Roadmap
+
+| | Meilenstein | Fertig, wenn |
+| --- | --- | --- |
+| **M0** | Gerüst | ✅ Karte auf dem Handy flüssig scroll- und zoombar, Pause hält den Tick an |
+| **M1** | Einheiten & Bewegung | ✅ 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
+| M2 | Wirtschaft & Bau | Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
+| M3 | Produktion & Kampf | Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
+| M4 | Echte Bots | Bot vs. Bot läuft 20 Minuten stabil, Mensch verliert gegen „Schwer" |
+| M5 | Ketten, Nahrung, Energie | Erster Balance-Pass über Massen-Headless-Matches |
+| M6 | Fog of War | Aufklärung zählt, Bots respektieren den Nebel |
+| M7 | Völker 2 & 3 | Klan und Brut spielbar |
+| M8 | Welten | Prozedurale Karten, vier Biome, Skirmish-Setup |
+| M9 | Politur | Speichern/Laden, Replays, PWA, offline |
+| M10 | Multiplayer | Lockstep über WebSocket (optional) |

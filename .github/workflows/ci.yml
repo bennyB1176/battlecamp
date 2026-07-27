@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Includes the determinism suite: the same seed and commands must always
+      # produce the same world hash. This is the tripwire that protects replays,
+      # headless balance runs and (later) lockstep multiplayer.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans the whole history, not just the tip: a key that was
+          # committed and later "removed" is still in every clone.
+          fetch-depth: 0
+
+      # Runs the same script developers run locally, so a green pipeline and a
+      # green local run can never mean different things. The gitleaks binary is
+      # pinned to a version and a SHA-256 inside the script rather than pulled
+      # as `latest`.
+      #
+      # Deliberately not gitleaks-action: it is built on Node 20, which GitHub
+      # removes from its runners in September 2026, and it requires a licence
+      # key for organisation-owned repositories. The CLI has neither problem.
+      - name: Scan for secrets
+        run: npm run scan:secrets
