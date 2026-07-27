@@ -28,6 +28,7 @@ npm run dev -- --host   # dann vom Handy im gleichen WLAN öffnen
 | `npm test` | Vitest, inklusive Determinismus- und Abnahme-Suite |
 | `npm run build` | Typecheck + Produktions-Build nach `dist/` |
 | `npm run build:single` | Alles in eine Datei: `dist-single/battlecamp.html` |
+| `node scripts/make-icons.mjs` | App-Symbole neu erzeugen (nach Farbänderungen) |
 | `npm run match` | Headless-Partien für Balance und Stabilität, z.B. `-- --seeds 8 --bots leicht,schwer` |
 | `npm run scan:secrets` | gitleaks über Arbeitskopie und Historie |
 | `npm run hooks:install` | Pre-commit-Hook aktivieren (optional) |

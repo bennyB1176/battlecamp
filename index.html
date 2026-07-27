@@ -15,6 +15,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Battlecamp" />
+    <!-- The SVG scales to any tab size; the PNG is what iOS puts on the home
+         screen, which cannot use SVG. Without these the browser asks for
+         /favicon.ico on every load and gets a 404. -->
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./icon-180.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./src/ui/style.css" />
   </head>
