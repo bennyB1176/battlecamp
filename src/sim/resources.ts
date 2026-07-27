@@ -20,16 +20,57 @@ export const Resource = {
   Wood: 0,
   Stone: 1,
   Ore: 2,
+  /** Refined from wood. */
+  Planks: 3,
+  /** Refined from ore. */
+  Steel: 4,
 } as const;
 
 export type ResourceKind = (typeof Resource)[keyof typeof Resource];
 
-export const RESOURCE_KINDS: readonly ResourceKind[] = [Resource.Wood, Resource.Stone, Resource.Ore];
+export const RESOURCE_KINDS: readonly ResourceKind[] = [
+  Resource.Wood,
+  Resource.Stone,
+  Resource.Ore,
+  Resource.Planks,
+  Resource.Steel,
+];
+
+/**
+ * The ones that come out of the ground, in the order the HUD shows them.
+ *
+ * Separate from RESOURCE_KINDS because plenty of code means specifically "what
+ * a worker can be sent to dig up" — a bot looking for the scarcest seam must
+ * not decide the answer is steel and then wander the map looking for a steel
+ * mine.
+ */
+export const RAW_KINDS: readonly ResourceKind[] = [Resource.Wood, Resource.Stone, Resource.Ore];
+
+/** What a refinery makes. Everything here has to be produced, never gathered. */
+export const REFINED_KINDS: readonly ResourceKind[] = [Resource.Planks, Resource.Steel];
+
+/**
+ * Swatch colour for the resource bar, kept beside the name for the same reason
+ * `TERRAIN_INFO` carries one: adding a resource should be a single edit here,
+ * not a hunt through markup and a stylesheet for the three places that would
+ * otherwise have to agree.
+ */
+export const RESOURCE_COLORS: Readonly<Record<ResourceKind, string>> = {
+  [Resource.Wood]: "#6ba85a",
+  [Resource.Stone]: "#c9c6bd",
+  [Resource.Ore]: "#d69a4c",
+  // Refined goods share their raw material's hue, lightened: the bar reads as
+  // two tiers at a glance rather than as five unrelated colours.
+  [Resource.Planks]: "#a8d18f",
+  [Resource.Steel]: "#9fb6c9",
+};
 
 export const RESOURCE_NAMES: Readonly<Record<ResourceKind, string>> = {
   [Resource.Wood]: "Holz",
   [Resource.Stone]: "Stein",
   [Resource.Ore]: "Erz",
+  [Resource.Planks]: "Bretter",
+  [Resource.Steel]: "Stahl",
 };
 
 /** A price tag. Missing entries mean "costs none of that". */
@@ -40,6 +81,10 @@ const DEPOSIT_YIELD: Readonly<Record<ResourceKind, number>> = {
   [Resource.Wood]: 240,
   [Resource.Stone]: 400,
   [Resource.Ore]: 320,
+  // Refined goods are never in the ground; these exist only to keep the record
+  // total, and `resourceOfTerrain` never returns them.
+  [Resource.Planks]: 0,
+  [Resource.Steel]: 0,
 };
 
 export function resourceOfTerrain(terrain: TerrainType): ResourceKind | null {
@@ -67,6 +112,8 @@ export function createPlayer(id: PlayerId, starting: Cost = {}): Player {
       [Resource.Wood]: starting[Resource.Wood] ?? 0,
       [Resource.Stone]: starting[Resource.Stone] ?? 0,
       [Resource.Ore]: starting[Resource.Ore] ?? 0,
+      [Resource.Planks]: starting[Resource.Planks] ?? 0,
+      [Resource.Steel]: starting[Resource.Steel] ?? 0,
     },
   };
 }

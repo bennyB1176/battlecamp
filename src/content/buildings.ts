@@ -12,7 +12,7 @@
  */
 
 import { fromTiles } from "../sim/fixed.js";
-import { Resource, type Cost } from "../sim/resources.js";
+import { Resource, type Cost, type ResourceKind } from "../sim/resources.js";
 import { Armor, DamageType, type ArmorId, type Weapon } from "./combat.js";
 import { UnitType, type UnitTypeId } from "./units.js";
 
@@ -23,9 +23,30 @@ export const BuildingType = {
   Tower: 2,
   /** Trains fighting units. */
   Barracks: 3,
+  /** Refines wood into planks. */
+  Sawmill: 4,
+  /** Refines ore into steel. */
+  Smelter: 5,
 } as const;
 
 export type BuildingTypeId = (typeof BuildingType)[keyof typeof BuildingType];
+
+/**
+ * A standing order this building works through, over and over.
+ *
+ * Both sides of it are the player's single global pool: no carts, no storage to
+ * route between. What makes a refinery a decision is therefore not logistics but
+ * *opportunity* — the wood it eats is wood not spent on units, and the building
+ * itself is more ground to defend.
+ */
+export interface Recipe {
+  readonly input: ResourceKind;
+  readonly inputAmount: number;
+  readonly output: ResourceKind;
+  readonly outputAmount: number;
+  /** Ticks per batch. */
+  readonly ticks: number;
+}
 
 export interface BuildingDef {
   readonly name: string;
@@ -51,6 +72,8 @@ export interface BuildingDef {
   readonly armor: ArmorId;
   /** Null for anything that cannot shoot back. */
   readonly weapon: Weapon | null;
+  /** What this building converts, or null if it converts nothing. */
+  readonly refines: Recipe | null;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -65,6 +88,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     produces: [UnitType.Worker],
     armor: Armor.Building,
     weapon: null,
+    refines: null,
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -77,6 +101,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     produces: [],
     armor: Armor.Building,
     weapon: null,
+    refines: null,
   },
   [BuildingType.Barracks]: {
     name: "Kaserne",
@@ -89,6 +114,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     produces: [UnitType.Soldier, UnitType.Grenadier, UnitType.Vehicle],
     armor: Armor.Building,
     weapon: null,
+    refines: null,
   },
   [BuildingType.Tower]: {
     name: "Turm",
@@ -105,6 +131,48 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // Out-ranges infantry on purpose. A tower a soldier can stand outside of
     // and shoot is not a defence, it is a target.
     weapon: { damage: 12, damageType: DamageType.Piercing, range: fromTiles(4.5), cooldownTicks: 8 },
+    refines: null,
+  },
+  [BuildingType.Sawmill]: {
+    name: "Sägewerk",
+    footprint: 2,
+    maxHp: 480,
+    cost: { [Resource.Wood]: 140, [Resource.Stone]: 60 },
+    buildWork: 200,
+    buildRadius: 3,
+    acceptsDeliveries: false,
+    produces: [],
+    armor: Armor.Building,
+    weapon: null,
+    // Twelve seconds a batch. Slow enough that one sawmill is a commitment
+    // rather than a formality, fast enough to matter inside a fifteen-minute
+    // match.
+    refines: {
+      input: Resource.Wood,
+      inputAmount: 30,
+      output: Resource.Planks,
+      outputAmount: 10,
+      ticks: 120,
+    },
+  },
+  [BuildingType.Smelter]: {
+    name: "Schmelze",
+    footprint: 2,
+    maxHp: 520,
+    cost: { [Resource.Wood]: 120, [Resource.Stone]: 120 },
+    buildWork: 240,
+    buildRadius: 3,
+    acceptsDeliveries: false,
+    produces: [],
+    armor: Armor.Building,
+    weapon: null,
+    refines: {
+      input: Resource.Ore,
+      inputAmount: 30,
+      output: Resource.Steel,
+      outputAmount: 10,
+      ticks: 150,
+    },
   },
 };
 
@@ -116,5 +184,7 @@ export function buildingDef(typeId: BuildingTypeId): BuildingDef {
 export const BUILDABLE: readonly BuildingTypeId[] = [
   BuildingType.Depot,
   BuildingType.Barracks,
+  BuildingType.Sawmill,
+  BuildingType.Smelter,
   BuildingType.Tower,
 ];

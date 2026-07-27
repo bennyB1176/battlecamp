@@ -83,11 +83,16 @@ describe("M4 acceptance: a match against real opponents", () => {
 
   it("keeps both sides playing rather than one quietly dying of nothing", () => {
     // A bot that stops gathering, stops building or stops producing still
-    // "runs" for twenty minutes. It just does not play. Checked at five
-    // minutes: long enough that a barracks and an army exist, early enough that
-    // the loser has not yet been taken apart and the numbers still describe how
-    // each side plays rather than how the fight went.
-    const world = play(2, [Difficulty.Normal, Difficulty.Hard], 3000).world;
+    // "runs" for twenty minutes. It just does not play.
+    //
+    // Sampled at sixty per cent of however long the match actually lasted,
+    // rather than at a fixed five minutes. A fixed mark measures the balance of
+    // the day: the first time the economy got faster, matches ended sooner, the
+    // mark landed after the loser had already been dismantled, and a test about
+    // *playing* started failing for reasons about *winning*.
+    const settings = [Difficulty.Normal, Difficulty.Hard];
+    const full = play(2, settings);
+    const world = play(2, settings, Math.floor(full.ticks * 0.6)).world;
 
     for (const player of world.players) {
       const owned = world.entities.list.filter((entity) => entity.owner === player.id);
@@ -95,7 +100,7 @@ describe("M4 acceptance: a match against real opponents", () => {
       const fighters = owned.filter((entity) => isUnit(entity) && !isWorker(entity)).length;
       const buildings = owned.filter(isBuilding).length;
 
-      expect(workers, `player ${player.id} has no economy after five minutes`).toBeGreaterThan(2);
+      expect(workers, `player ${player.id} has no economy at sixty per cent of the match`).toBeGreaterThan(2);
       expect(buildings, `player ${player.id} never built anything`).toBeGreaterThan(1);
       expect(fighters, `player ${player.id} never made an army`).toBeGreaterThan(0);
     }

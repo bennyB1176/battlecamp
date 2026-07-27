@@ -88,6 +88,10 @@ export function hashWorld(world: World): number {
       h = mix(h, 0xff);
     }
 
+    // Refinery progress is simulation state: two runs that disagree about how
+    // far a batch has come will disagree about the whole economy a minute later.
+    h = mixInt32(h, entity.refinery?.progress ?? -1);
+
     const production = entity.production;
     if (production) {
       h = mixInt32(h, production.progress);

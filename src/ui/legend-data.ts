@@ -12,7 +12,12 @@
  * Pure data, no DOM, so it can be tested directly.
  */
 
-import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from "../content/buildings.js";
+import {
+  BUILDING_DEFS,
+  buildingDef,
+  type BuildingTypeId,
+  type Recipe,
+} from "../content/buildings.js";
 import {
   ARMOR_KINDS,
   ARMOR_NAMES,
@@ -59,6 +64,24 @@ export interface BuildingEntry {
   readonly trains: readonly string[];
   readonly acceptsDeliveries: boolean;
   readonly weaponText: string | null;
+  /** What it converts, or null when it converts nothing. */
+  readonly refinesText: string | null;
+}
+
+/**
+ * A recipe in one line: "30 Holz → 10 Bretter, alle 12 s".
+ *
+ * Worth spelling out because refining is the one mechanic with no feedback on
+ * the map at all — no worker walks anywhere, the goods simply appear in a
+ * number at the top of the screen. A player who cannot see the rate cannot
+ * judge whether a second sawmill is worth more than ten more soldiers.
+ */
+function describeRecipe(recipe: Recipe): string {
+  const seconds = (recipe.ticks / TICKS_PER_SECOND).toFixed(0);
+  return (
+    `${recipe.inputAmount} ${RESOURCE_NAMES[recipe.input]} → ` +
+    `${recipe.outputAmount} ${RESOURCE_NAMES[recipe.output]}, alle ${seconds} s`
+  );
 }
 
 export function formatCost(cost: Cost): string {
@@ -139,6 +162,7 @@ export function buildingEntries(): BuildingEntry[] {
         weaponText: def.weapon
           ? describeWeapon(def.weapon.damage, def.weapon.damageType, def.weapon.range, def.weapon.cooldownTicks)
           : null,
+        refinesText: def.refines ? describeRecipe(def.refines) : null,
       };
     });
 }

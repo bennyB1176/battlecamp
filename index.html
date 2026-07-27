@@ -28,11 +28,9 @@
 
     <div id="hud">
       <div id="hud-top">
-        <div class="pill resources">
-          <span class="res res-wood" id="res-wood">0</span>
-          <span class="res res-stone" id="res-stone">0</span>
-          <span class="res res-ore" id="res-ore">0</span>
-        </div>
+        <!-- Filled from the resource table at start-up, so adding a resource
+             is one edit in src/sim/resources.ts and nothing here. -->
+        <div class="pill resources" id="resources"></div>
         <div class="pill" id="clock">0:00</div>
         <div class="pill" id="stats">–</div>
       </div>

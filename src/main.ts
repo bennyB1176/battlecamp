@@ -27,8 +27,9 @@ import { buildingDefOf, isBuilding, isComplete, type Entity } from "./sim/entiti
 import { weaponOf } from "./sim/combat.js";
 import { fromTiles } from "./sim/fixed.js";
 import { terrainAt } from "./sim/grid.js";
-import { Resource, resourceOfTerrain, RESOURCE_NAMES, type Cost } from "./sim/resources.js";
+import { canAfford, resourceOfTerrain } from "./sim/resources.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
+import { formatCost } from "./ui/legend-data.js";
 import { createHud, type HudAction } from "./ui/hud.js";
 import { createLegend } from "./ui/legend.js";
 
@@ -57,14 +58,6 @@ const AUTO_BUILDERS = 3;
 function formatClock(tick: number): string {
   const totalSeconds = Math.floor(tick / TICKS_PER_SECOND);
   return `${Math.floor(totalSeconds / 60)}:${(totalSeconds % 60).toString().padStart(2, "0")}`;
-}
-
-function formatCost(cost: Cost): string {
-  const parts: string[] = [];
-  if (cost[Resource.Wood]) parts.push(`${cost[Resource.Wood]} ${RESOURCE_NAMES[Resource.Wood]}`);
-  if (cost[Resource.Stone]) parts.push(`${cost[Resource.Stone]} ${RESOURCE_NAMES[Resource.Stone]}`);
-  if (cost[Resource.Ore]) parts.push(`${cost[Resource.Ore]} ${RESOURCE_NAMES[Resource.Ore]}`);
-  return parts.join(" · ");
 }
 
 /** Say why a placement was refused, in words a player can act on. */
@@ -431,10 +424,9 @@ function start(): void {
       const queued = producer.production?.queue.length ?? 0;
       const actions: HudAction[] = def.produces.map((unitType) => {
         const unit = unitDef(unitType);
-        const affordable =
-          (player.resources[Resource.Wood] ?? 0) >= (unit.cost[Resource.Wood] ?? 0) &&
-          (player.resources[Resource.Stone] ?? 0) >= (unit.cost[Resource.Stone] ?? 0) &&
-          (player.resources[Resource.Ore] ?? 0) >= (unit.cost[Resource.Ore] ?? 0);
+        // Asked of the same function the simulation uses, so a new resource
+        // cannot make the button lie about what the player can pay for.
+        const affordable = canAfford(player, unit.cost);
 
         return {
           id: `train-${unitType}`,
@@ -564,11 +556,7 @@ function start(): void {
     });
 
     const player = world.players[LOCAL_PLAYER]!;
-    hud.setResources(
-      player.resources[Resource.Wood],
-      player.resources[Resource.Stone],
-      player.resources[Resource.Ore],
-    );
+    hud.setResources(player.resources);
 
     const context = contextForSelection();
     const showNoticeNow = world.tick < noticeUntilTick && notice !== "";

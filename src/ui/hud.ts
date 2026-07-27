@@ -22,6 +22,13 @@ export interface HudCallbacks {
 }
 
 /** One button in the context panel. */
+import {
+  RESOURCE_COLORS,
+  RESOURCE_KINDS,
+  RESOURCE_NAMES,
+  type ResourceKind,
+} from "../sim/resources.js";
+
 export interface HudAction {
   readonly id: string;
   readonly label: string;
@@ -41,7 +48,8 @@ export interface Hud {
   setSelectMode: (active: boolean) => void;
   setBuildMode: (active: boolean) => void;
   setAttackMode: (active: boolean) => void;
-  setResources: (wood: number, stone: number, ore: number) => void;
+  /** Amounts by resource kind, in the order the resource table lists them. */
+  setResources: (amounts: Readonly<Record<ResourceKind, number>>) => void;
   /** Replace the context panel. An empty action list hides it. */
   setContext: (title: string, actions: readonly HudAction[]) => void;
 }
@@ -63,9 +71,19 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const legendButton = requireElement<HTMLButtonElement>("btn-legend");
   const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
 
-  const wood = requireElement<HTMLSpanElement>("res-wood");
-  const stone = requireElement<HTMLSpanElement>("res-stone");
-  const ore = requireElement<HTMLSpanElement>("res-ore");
+  // Built from the table rather than from markup: a new resource is one edit in
+  // src/sim/resources.ts, and the bar, its swatch and the legend all follow.
+  const resourceBar = requireElement<HTMLDivElement>("resources");
+  const amounts = new Map<ResourceKind, HTMLSpanElement>();
+  for (const kind of RESOURCE_KINDS) {
+    const span = document.createElement("span");
+    span.className = "res";
+    span.style.setProperty("--swatch", RESOURCE_COLORS[kind]);
+    span.title = RESOURCE_NAMES[kind];
+    span.textContent = "0";
+    resourceBar.append(span);
+    amounts.set(kind, span);
+  }
 
   const context = requireElement<HTMLDivElement>("hud-context");
   const contextTitle = requireElement<HTMLDivElement>("context-title");
@@ -120,10 +138,13 @@ export function createHud(callbacks: HudCallbacks): Hud {
     setAttackMode: (active) => {
       attackButton.classList.toggle("active", active);
     },
-    setResources: (woodAmount, stoneAmount, oreAmount) => {
-      wood.textContent = String(woodAmount);
-      stone.textContent = String(stoneAmount);
-      ore.textContent = String(oreAmount);
+    setResources: (stock) => {
+      for (const [kind, span] of amounts) {
+        const text = String(stock[kind] ?? 0);
+        // Touching textContent on every frame would make the phone re-layout the
+        // whole bar sixty times a second for numbers that change once a second.
+        if (span.textContent !== text) span.textContent = text;
+      }
     },
     setContext: (title, actions) => {
       // Rebuilding the panel on every frame would kill any button mid-tap on a
