@@ -23,6 +23,7 @@ import { createRenderer, renderFrame, resizeRenderer } from "./render/renderer.j
 import { canPlace, PlacementError, type PlacementErrorKind } from "./sim/construction.js";
 import type { Command } from "./sim/commands.js";
 import { isWorker } from "./sim/economy.js";
+import { foodDemand, foodSupply } from "./sim/food.js";
 import { buildingDefOf, isBuilding, isComplete, type Entity } from "./sim/entities.js";
 import { weaponOf } from "./sim/combat.js";
 import { fromTiles } from "./sim/fixed.js";
@@ -557,6 +558,7 @@ function start(): void {
 
     const player = world.players[LOCAL_PLAYER]!;
     hud.setResources(player.resources);
+    hud.setFood(foodDemand(world, LOCAL_PLAYER), foodSupply(world, LOCAL_PLAYER));
 
     const context = contextForSelection();
     const showNoticeNow = world.tick < noticeUntilTick && notice !== "";

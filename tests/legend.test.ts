@@ -15,9 +15,15 @@ import {
   buildingEntries,
   counterTriangle,
   formatCost,
+  resourceEntries,
   unitEntries,
 } from "../src/ui/legend-data.js";
-import { Resource, RESOURCE_NAMES } from "../src/sim/resources.js";
+import {
+  Resource,
+  RESOURCE_COLORS,
+  RESOURCE_KINDS,
+  RESOURCE_NAMES,
+} from "../src/sim/resources.js";
 
 describe("unit entries", () => {
   it("lists every unit the game has, with no hand-maintained list", () => {
@@ -159,5 +165,31 @@ describe("refineries in the legend", () => {
 
     expect(smelter.refinesText).toContain(String(recipe.inputAmount));
     expect(smelter.refinesText).toContain(String(recipe.outputAmount));
+  });
+});
+
+describe("the resource list", () => {
+  it("covers every resource the game has, refined ones included", () => {
+    // It used to be a hand-written list of three, with the colours copied by
+    // hand from the stylesheet. Adding planks and steel left it silently two
+    // short — the exact drift this project keeps the help in the game to avoid.
+    expect(resourceEntries().map((entry) => entry.name)).toEqual(
+      RESOURCE_KINDS.map((kind) => RESOURCE_NAMES[kind]),
+    );
+  });
+
+  it("says where each one comes from", () => {
+    const entries = resourceEntries();
+    const wood = entries.find((entry) => entry.name === RESOURCE_NAMES[Resource.Wood])!;
+    const planks = entries.find((entry) => entry.name === RESOURCE_NAMES[Resource.Planks])!;
+
+    expect(wood.from, "wood should come from the terrain that holds it").toBe("Wald");
+    expect(planks.from, "planks should name the building that makes them").toBe("Sägewerk");
+  });
+
+  it("takes its colours from the table, not from the stylesheet", () => {
+    for (const entry of resourceEntries()) {
+      expect(Object.values(RESOURCE_COLORS)).toContain(entry.color);
+    }
   });
 });

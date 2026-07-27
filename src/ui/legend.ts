@@ -14,15 +14,8 @@
 
 import { playerColors } from "../content/players.js";
 import { traceUnitShape } from "../render/entities.js";
-import { RESOURCE_NAMES, Resource } from "../sim/resources.js";
 import { UnitType } from "../content/units.js";
-import { buildingEntries, counterTriangle, unitEntries } from "./legend-data.js";
-
-const RESOURCE_SWATCHES: ReadonlyArray<{ color: string; name: string; from: string }> = [
-  { color: "#6ba85a", name: RESOURCE_NAMES[Resource.Wood], from: "Wald" },
-  { color: "#d8d5cc", name: RESOURCE_NAMES[Resource.Stone], from: "Steinbruch" },
-  { color: "#e0a75c", name: RESOURCE_NAMES[Resource.Ore], from: "Erzader" },
-];
+import { buildingEntries, counterTriangle, resourceEntries, unitEntries } from "./legend-data.js";
 
 const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["Ein Finger ziehen", "Karte verschieben"],
@@ -152,7 +145,7 @@ function buildContent(): DocumentFragment {
   fragment.append(heading("Rohstoffe"));
   const resources = document.createElement("div");
   resources.className = "legend-resources";
-  for (const swatch of RESOURCE_SWATCHES) {
+  for (const swatch of resourceEntries()) {
     const chip = document.createElement("span");
     chip.className = "legend-chip";
     const dot = document.createElement("span");
@@ -168,6 +161,25 @@ function buildContent(): DocumentFragment {
     paragraph(
       "Vorkommen sind endlich. Eine abgeerntete Kachel wird wieder Wiese — wer seine Umgebung " +
         "ausgeräumt hat, muss dorthin expandieren, wo auch andere hinwollen.",
+    ),
+    paragraph(
+      "Bretter und Stahl liegen nicht im Boden: dafür braucht es ein Sägewerk und eine Schmelze, " +
+        "die laufend aus dem Vorrat veredeln. Der Panzerwagen hängt daran — wer nie eine Schmelze " +
+        "gebaut hat, kann ihn nicht aufstellen, wie viel rohes Erz auch herumliegt.",
+    ),
+  );
+
+  fragment.append(heading("Nahrung"));
+  fragment.append(
+    paragraph(
+      "Nahrung ist die einzige Ausgabe, die immer wieder anfällt: jede Einheit kostet sie, " +
+        "solange sie lebt. Die Anzeige oben links zeigt Bedarf durch Versorgung und wird rot, " +
+        "sobald sie nicht mehr reicht.",
+    ),
+    paragraph(
+      "Reicht sie nicht, verliert die ganze Armee langsam Leben — sie stirbt nicht daran, aber " +
+        "sie verliert den nächsten Kampf. Eine Farm ist das billigste Gebäude im Menü und die " +
+        "Antwort darauf. Wer satt ist, erholt sich langsam wieder.",
     ),
   );
 

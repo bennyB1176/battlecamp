@@ -28,7 +28,15 @@ import {
 import { UNIT_DEFS, unitDef, type UnitTypeId } from "../content/units.js";
 import { TICKS_PER_SECOND } from "../sim/constants.js";
 import { toTiles } from "../sim/fixed.js";
-import { RESOURCE_KINDS, RESOURCE_NAMES, type Cost } from "../sim/resources.js";
+import {
+  resourceOfTerrain,
+  RESOURCE_COLORS,
+  RESOURCE_KINDS,
+  RESOURCE_NAMES,
+  type Cost,
+  type ResourceKind,
+} from "../sim/resources.js";
+import { TERRAIN_INFO, type TerrainType } from "../sim/grid.js";
 
 /** A multiplier at or above this reads as "this is what the weapon is for". */
 const STRONG = 110;
@@ -165,6 +173,43 @@ export function buildingEntries(): BuildingEntry[] {
         refinesText: def.refines ? describeRecipe(def.refines) : null,
       };
     });
+}
+
+export interface ResourceEntry {
+  readonly name: string;
+  readonly color: string;
+  /** Where it comes from: the terrain that holds it, or the building that makes it. */
+  readonly from: string;
+}
+
+/**
+ * Every resource, with its swatch and its source.
+ *
+ * Derived rather than listed. The hand-written version of this was three
+ * entries with the colours copied out of the stylesheet by hand; the moment
+ * planks and steel existed it was silently two short and two colours out of
+ * date, while still looking authoritative. That is the failure mode this whole
+ * file exists to prevent.
+ */
+export function resourceEntries(): ResourceEntry[] {
+  return RESOURCE_KINDS.map((kind) => ({
+    name: RESOURCE_NAMES[kind],
+    color: RESOURCE_COLORS[kind],
+    from: sourceOf(kind),
+  }));
+}
+
+/** The terrain a resource is dug out of, or the building that refines it. */
+function sourceOf(kind: ResourceKind): string {
+  for (const terrain of Object.keys(TERRAIN_INFO).map(Number) as TerrainType[]) {
+    if (resourceOfTerrain(terrain) === kind) return TERRAIN_INFO[terrain].name;
+  }
+
+  for (const typeId of Object.keys(BUILDING_DEFS).map(Number) as BuildingTypeId[]) {
+    if (buildingDef(typeId).refines?.output === kind) return buildingDef(typeId).name;
+  }
+
+  return "—";
 }
 
 export interface CounterEntry {

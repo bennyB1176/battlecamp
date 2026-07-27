@@ -37,6 +37,14 @@ export interface UnitDef {
   /** Vision radius in fixed units. Unused until fog of war in M6. */
   readonly sight: number;
   readonly cost: Cost;
+  /**
+   * Food owed every tick for as long as this unit lives.
+   *
+   * The only recurring cost in the game. Workers eat least on purpose: a rule
+   * that punished building an economy would be the exact opposite of what this
+   * one is for.
+   */
+  readonly upkeep: number;
   /** Ticks of training before the unit walks out. */
   readonly trainTicks: number;
   /**
@@ -95,6 +103,8 @@ function def(
   shape: UnitShape,
   armor: ArmorId,
   weaponDef: Weapon | null,
+  /** Food owed per tick. Last because it is the newest, not the least important. */
+  upkeep: number,
 ): UnitDef {
   return {
     name,
@@ -107,6 +117,7 @@ function def(
     shape,
     armor,
     weapon: weaponDef,
+    upkeep,
   };
 }
 
@@ -126,6 +137,8 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     UnitShape.Round,
     Armor.Light,
     weapon(3, DamageType.Normal, 0.8, 1.2),
+    // eats least: the rule must not punish building an economy
+    1,
   ),
   [UnitType.Soldier]: def(
     "Soldat",
@@ -138,6 +151,7 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     UnitShape.Shield,
     Armor.Light,
     weapon(9, DamageType.Normal, 1.6, 0.8),
+    2,
   ),
   // Sight far beyond its reach: the scout's job is to find things, not fight.
   [UnitType.Scout]: def(
@@ -151,6 +165,8 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     UnitShape.Arrow,
     Armor.Light,
     weapon(5, DamageType.Piercing, 1.4, 1.0),
+    // cheap to keep, so scouting stays affordable
+    1,
   ),
   [UnitType.Grenadier]: def(
     "Grenadier",
@@ -163,6 +179,7 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     UnitShape.Wedge,
     Armor.Medium,
     weapon(16, DamageType.Explosive, 2.2, 1.8),
+    2,
   ),
   [UnitType.Vehicle]: def(
     "Panzerwagen",
@@ -178,6 +195,8 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     UnitShape.Hull,
     Armor.Heavy,
     weapon(14, DamageType.Piercing, 2.0, 0.9),
+    // the heaviest thing in the game is also the hungriest
+    4,
   ),
 };
 

@@ -27,6 +27,8 @@ export const BuildingType = {
   Sawmill: 4,
   /** Refines ore into steel. */
   Smelter: 5,
+  /** Feeds an army. Produces no goods; it raises the food ceiling. */
+  Farm: 6,
 } as const;
 
 export type BuildingTypeId = (typeof BuildingType)[keyof typeof BuildingType];
@@ -74,6 +76,12 @@ export interface BuildingDef {
   readonly weapon: Weapon | null;
   /** What this building converts, or null if it converts nothing. */
   readonly refines: Recipe | null;
+  /**
+   * How many units this building can feed.
+   *
+   * A ceiling, not a stock: see `src/sim/food.ts` for why nothing accumulates.
+   */
+  readonly foodSupply: number;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -89,6 +97,9 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     armor: Armor.Building,
     weapon: null,
     refines: null,
+    // Enough for the opening dozen, and no more. The first minutes must not be
+    // a food puzzle; the bill starts biting the moment a player grows.
+    foodSupply: 16,
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -102,6 +113,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     armor: Armor.Building,
     weapon: null,
     refines: null,
+    foodSupply: 0,
   },
   [BuildingType.Barracks]: {
     name: "Kaserne",
@@ -115,6 +127,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     armor: Armor.Building,
     weapon: null,
     refines: null,
+    foodSupply: 0,
   },
   [BuildingType.Tower]: {
     name: "Turm",
@@ -132,6 +145,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // and shoot is not a defence, it is a target.
     weapon: { damage: 12, damageType: DamageType.Piercing, range: fromTiles(4.5), cooldownTicks: 8 },
     refines: null,
+    foodSupply: 0,
   },
   [BuildingType.Sawmill]: {
     name: "Sägewerk",
@@ -147,6 +161,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // Twelve seconds a batch. Slow enough that one sawmill is a commitment
     // rather than a formality, fast enough to matter inside a fifteen-minute
     // match.
+    foodSupply: 0,
     refines: {
       input: Resource.Wood,
       inputAmount: 30,
@@ -154,6 +169,22 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
       outputAmount: 10,
       ticks: 120,
     },
+  },
+  [BuildingType.Farm]: {
+    name: "Farm",
+    footprint: 2,
+    maxHp: 380,
+    // The cheapest thing in the menu on purpose. Feeding an army has to be the
+    // easy answer to a real problem, not another claimant on the same wood.
+    cost: { [Resource.Wood]: 80, [Resource.Stone]: 20 },
+    buildWork: 140,
+    buildRadius: 3,
+    acceptsDeliveries: false,
+    produces: [],
+    armor: Armor.Building,
+    weapon: null,
+    refines: null,
+    foodSupply: 12,
   },
   [BuildingType.Smelter]: {
     name: "Schmelze",
@@ -166,6 +197,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     produces: [],
     armor: Armor.Building,
     weapon: null,
+    foodSupply: 0,
     refines: {
       input: Resource.Ore,
       inputAmount: 30,
@@ -182,6 +214,7 @@ export function buildingDef(typeId: BuildingTypeId): BuildingDef {
 
 /** Build menu order. Explicit so the UI does not depend on object key order. */
 export const BUILDABLE: readonly BuildingTypeId[] = [
+  BuildingType.Farm,
   BuildingType.Depot,
   BuildingType.Barracks,
   BuildingType.Sawmill,
