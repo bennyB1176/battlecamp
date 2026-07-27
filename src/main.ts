@@ -22,11 +22,13 @@ import { canPlace, PlacementError, type PlacementErrorKind } from "./sim/constru
 import type { Command } from "./sim/commands.js";
 import { isWorker } from "./sim/economy.js";
 import { buildingDefOf, isBuilding, isComplete, type Entity } from "./sim/entities.js";
+import { weaponOf } from "./sim/combat.js";
 import { fromTiles } from "./sim/fixed.js";
 import { terrainAt } from "./sim/grid.js";
 import { Resource, resourceOfTerrain, RESOURCE_NAMES, type Cost } from "./sim/resources.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { createHud, type HudAction } from "./ui/hud.js";
+import { createLegend } from "./ui/legend.js";
 
 /** Available time multipliers. */
 const SPEEDS = [1, 2, 4] as const;
@@ -112,6 +114,9 @@ function start(): void {
   let buildMenuOpen = false;
   let armedBuilding: BuildingTypeId | null = null;
 
+  /** Armed attack-move: the next tap on the map is an advance, not a walk. */
+  let attackMoveArmed = false;
+
   /** A short-lived message, e.g. why a placement was refused. */
   let notice = "";
   let noticeUntilTick = 0;
@@ -120,6 +125,10 @@ function start(): void {
     notice = text;
     noticeUntilTick = world.tick + NOTICE_TICKS;
   };
+
+  // Built once, filled on open. The help sheet is the one place a new player
+  // can find out what the silhouettes mean without having to guess.
+  const legend = createLegend();
 
   const hud = createHud({
     onTogglePause: () => {
@@ -149,9 +158,22 @@ function start(): void {
       } else {
         buildMenuOpen = true;
         selectMode = false;
+        attackMoveArmed = false;
         hud.setSelectMode(false);
+        hud.setAttackMode(false);
       }
       hud.setBuildMode(buildMenuOpen);
+    },
+    onToggleLegend: () => legend.toggle(),
+    onToggleAttackMove: () => {
+      attackMoveArmed = !attackMoveArmed;
+      // The modes are mutually exclusive: a tap has to mean exactly one thing.
+      if (attackMoveArmed) {
+        selectMode = false;
+        closeBuildMenu();
+        hud.setSelectMode(false);
+      }
+      hud.setAttackMode(attackMoveArmed);
     },
   });
 
@@ -165,14 +187,20 @@ function start(): void {
   hud.setSpeed(speed);
   hud.setSelectMode(selectMode);
   hud.setBuildMode(buildMenuOpen);
+  hud.setAttackMode(attackMoveArmed);
 
-  /** Own entity under a point, if any. */
-  function entityAt(x: number, y: number): Entity | null {
+  /**
+   * Entity under a point, if any.
+   *
+   * `owner` of null matches anybody — which is how tapping an enemy to attack
+   * it works, as opposed to tapping your own unit to select it.
+   */
+  function entityAt(x: number, y: number, owner: number | null): Entity | null {
     let best: Entity | null = null;
     let bestDistanceSq = Number.POSITIVE_INFINITY;
 
     for (const entity of world.entities.list) {
-      if (entity.owner !== LOCAL_PLAYER) continue;
+      if (owner !== null && entity.owner !== owner) continue;
 
       if (isBuilding(entity)) {
         const def = buildingDefOf(entity);
@@ -262,7 +290,40 @@ function start(): void {
 
     const chosen = selectedEntities(selection, world);
     const workers = chosen.filter(isWorker);
-    const target = entityAt(x, y);
+    const fighters = chosen.filter((entity) => !isBuilding(entity) && weaponOf(entity) !== null);
+
+    // An armed advance: walk there, engaging whatever turns up on the way.
+    if (attackMoveArmed) {
+      if (fighters.length === 0) {
+        showNotice("Keine kampffähigen Einheiten gewählt");
+        return;
+      }
+      pendingCommands.push({
+        type: "attack-move",
+        playerId: LOCAL_PLAYER,
+        entityIds: fighters.map((entity) => entity.id),
+        targetX: x,
+        targetY: y,
+      });
+      attackMoveArmed = false;
+      hud.setAttackMode(false);
+      return;
+    }
+
+    // Tapping an enemy with fighters selected means attack it — the single most
+    // direct thing a player can want, so it comes before everything else.
+    const enemy = entityAt(x, y, null);
+    if (enemy && enemy.owner !== LOCAL_PLAYER && fighters.length > 0) {
+      pendingCommands.push({
+        type: "attack",
+        playerId: LOCAL_PLAYER,
+        entityIds: fighters.map((entity) => entity.id),
+        targetId: enemy.id,
+      });
+      return;
+    }
+
+    const target = entityAt(x, y, LOCAL_PLAYER);
 
     // Workers plus an unfinished building of mine means "go help", not "select".
     if (workers.length > 0 && target && isBuilding(target) && !isComplete(target)) {
@@ -445,6 +506,15 @@ function start(): void {
   const frame = (now: number): void => {
     requestAnimationFrame(frame);
 
+    // The legend covers the whole screen. Carrying on behind it would burn
+    // battery drawing a map nobody can see — and, worse, let the player be
+    // attacked while reading the manual. The player's own pause setting is left
+    // alone, so closing the sheet returns things exactly as they were.
+    if (legend.isOpen()) {
+      previousFrameTime = now;
+      return;
+    }
+
     const delta = Math.min(now - previousFrameTime, MAX_FRAME_DELTA_MS);
     previousFrameTime = now;
 
@@ -491,7 +561,18 @@ function start(): void {
 
     const context = contextForSelection();
     const showNoticeNow = world.tick < noticeUntilTick && notice !== "";
-    hud.setContext(showNoticeNow ? notice : context.title, context.actions);
+
+    if (world.matchOver) {
+      const outcome =
+        world.winner === LOCAL_PLAYER
+          ? "Sieg — der Gegner ist ausgelöscht"
+          : world.winner === null
+            ? "Unentschieden — beide Seiten vernichtet"
+            : "Niederlage";
+      hud.setContext(outcome, context.actions);
+    } else {
+      hud.setContext(showNoticeNow ? notice : context.title, context.actions);
+    }
 
     framesSinceReport++;
     if (now - fpsWindowStart >= 500) {

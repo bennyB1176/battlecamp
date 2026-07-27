@@ -17,6 +17,8 @@ export interface HudCallbacks {
   onCenter: () => void;
   onToggleSelectMode: () => void;
   onToggleBuildMenu: () => void;
+  onToggleAttackMove: () => void;
+  onToggleLegend: () => void;
 }
 
 /** One button in the context panel. */
@@ -38,6 +40,7 @@ export interface Hud {
   setSpeed: (speed: number) => void;
   setSelectMode: (active: boolean) => void;
   setBuildMode: (active: boolean) => void;
+  setAttackMode: (active: boolean) => void;
   setResources: (wood: number, stone: number, ore: number) => void;
   /** Replace the context panel. An empty action list hides it. */
   setContext: (title: string, actions: readonly HudAction[]) => void;
@@ -56,6 +59,8 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const centerButton = requireElement<HTMLButtonElement>("btn-center");
   const selectButton = requireElement<HTMLButtonElement>("btn-select");
   const buildButton = requireElement<HTMLButtonElement>("btn-build");
+  const attackButton = requireElement<HTMLButtonElement>("btn-attack");
+  const legendButton = requireElement<HTMLButtonElement>("btn-legend");
   const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
 
   const wood = requireElement<HTMLSpanElement>("res-wood");
@@ -70,6 +75,8 @@ export function createHud(callbacks: HudCallbacks): Hud {
   centerButton.addEventListener("click", callbacks.onCenter);
   selectButton.addEventListener("click", callbacks.onToggleSelectMode);
   buildButton.addEventListener("click", callbacks.onToggleBuildMenu);
+  attackButton.addEventListener("click", callbacks.onToggleAttackMove);
+  legendButton.addEventListener("click", callbacks.onToggleLegend);
 
   for (const button of speedButtons) {
     button.addEventListener("click", () => {
@@ -109,6 +116,9 @@ export function createHud(callbacks: HudCallbacks): Hud {
     },
     setBuildMode: (active) => {
       buildButton.classList.toggle("active", active);
+    },
+    setAttackMode: (active) => {
+      attackButton.classList.toggle("active", active);
     },
     setResources: (woodAmount, stoneAmount, oreAmount) => {
       wood.textContent = String(woodAmount);

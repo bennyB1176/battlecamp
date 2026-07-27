@@ -17,7 +17,13 @@ import type { Selection } from "../input/selection.js";
 import { PING_LIFETIME_TICKS, type Command } from "../sim/commands.js";
 import type { World } from "../sim/world.js";
 import type { BuildingTypeId } from "../content/buildings.js";
-import { drawBuildOverlay, drawEntities, drawOrders, drawSelectionBox } from "./entities.js";
+import {
+  drawBuildOverlay,
+  drawEntities,
+  drawOrders,
+  drawSelectionBox,
+  pruneRenderState,
+} from "./entities.js";
 import { createTerrainCache, drawTerrain, type TerrainCache } from "./terrain.js";
 
 /** Below this zoom the tile grid becomes visual noise, so we stop drawing it. */
@@ -117,6 +123,7 @@ export function renderFrame(renderer: Renderer, world: World, camera: Camera, in
   drawOrders(ctx, world, camera, input.selection);
   drawEntities(ctx, world, camera, input.selection, input.alpha);
   drawSelectionBox(ctx, camera, input.selectionBox);
+  pruneRenderState(world);
 
   renderer.lastFrameMs = performance.now() - started;
 }

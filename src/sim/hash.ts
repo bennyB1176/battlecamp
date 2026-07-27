@@ -71,6 +71,10 @@ export function hashWorld(world: World): number {
     h = mixInt32(h, entity.blockedTicks);
     h = mixInt32(h, entity.construction ?? -1);
     h = mixInt32(h, entity.buildTargetId ?? -1);
+    h = mixInt32(h, entity.attackTargetId ?? -1);
+    h = mixInt32(h, entity.weaponCooldown);
+    h = mixInt32(h, entity.attackMoveX ?? -1);
+    h = mixInt32(h, entity.attackMoveY ?? -1);
 
     const job = entity.job;
     if (job) {

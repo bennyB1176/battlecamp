@@ -11,12 +11,18 @@
  * Production buildings and defences arrive in M3, refinement chains in M5.
  */
 
+import { fromTiles } from "../sim/fixed.js";
 import { Resource, type Cost } from "../sim/resources.js";
+import { Armor, DamageType, type ArmorId, type Weapon } from "./combat.js";
 import { UnitType, type UnitTypeId } from "./units.js";
 
 export const BuildingType = {
   Headquarters: 0,
   Depot: 1,
+  /** Static defence: out-ranges infantry, cannot chase anything. */
+  Tower: 2,
+  /** Trains fighting units. */
+  Barracks: 3,
 } as const;
 
 export type BuildingTypeId = (typeof BuildingType)[keyof typeof BuildingType];
@@ -42,7 +48,9 @@ export interface BuildingDef {
   readonly acceptsDeliveries: boolean;
   /** Unit types this building can train. */
   readonly produces: readonly UnitTypeId[];
-  readonly color: string;
+  readonly armor: ArmorId;
+  /** Null for anything that cannot shoot back. */
+  readonly weapon: Weapon | null;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -55,7 +63,8 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     buildRadius: 7,
     acceptsDeliveries: true,
     produces: [UnitType.Worker],
-    color: "#8c7ab8",
+    armor: Armor.Building,
+    weapon: null,
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -66,7 +75,36 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     buildRadius: 4,
     acceptsDeliveries: true,
     produces: [],
-    color: "#b8975a",
+    armor: Armor.Building,
+    weapon: null,
+  },
+  [BuildingType.Barracks]: {
+    name: "Kaserne",
+    footprint: 2,
+    maxHp: 700,
+    cost: { [Resource.Wood]: 180, [Resource.Stone]: 60 },
+    buildWork: 220,
+    buildRadius: 4,
+    acceptsDeliveries: false,
+    produces: [UnitType.Soldier, UnitType.Grenadier, UnitType.Vehicle],
+    armor: Armor.Building,
+    weapon: null,
+  },
+  [BuildingType.Tower]: {
+    name: "Turm",
+    footprint: 1,
+    maxHp: 420,
+    cost: { [Resource.Wood]: 60, [Resource.Stone]: 110 },
+    buildWork: 180,
+    // A small radius: a tower defends ground you already hold, it does not
+    // claim new ground. Otherwise towers become a creeping siege weapon.
+    buildRadius: 2,
+    acceptsDeliveries: false,
+    produces: [],
+    armor: Armor.Building,
+    // Out-ranges infantry on purpose. A tower a soldier can stand outside of
+    // and shoot is not a defence, it is a target.
+    weapon: { damage: 12, damageType: DamageType.Piercing, range: fromTiles(4.5), cooldownTicks: 8 },
   },
 };
 
@@ -75,4 +113,8 @@ export function buildingDef(typeId: BuildingTypeId): BuildingDef {
 }
 
 /** Build menu order. Explicit so the UI does not depend on object key order. */
-export const BUILDABLE: readonly BuildingTypeId[] = [BuildingType.Depot];
+export const BUILDABLE: readonly BuildingTypeId[] = [
+  BuildingType.Depot,
+  BuildingType.Barracks,
+  BuildingType.Tower,
+];

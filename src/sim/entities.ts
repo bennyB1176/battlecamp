@@ -126,6 +126,22 @@ export interface Entity {
 
   /** Training queue, for buildings that produce units. Null otherwise. */
   production: ProductionState | null;
+
+  /** Enemy this entity was explicitly ordered to attack. */
+  attackTargetId: EntityId | null;
+
+  /** Ticks until the weapon can fire again. */
+  weaponCooldown: number;
+
+  /**
+   * Destination of an attack-move, in fixed point.
+   *
+   * Distinct from `goalX`/`goalY`: the goal changes constantly as the unit
+   * detours to engage things, while this remembers where it was actually
+   * heading so it can carry on afterwards.
+   */
+  attackMoveX: number | null;
+  attackMoveY: number | null;
 }
 
 export interface EntityStore {
@@ -158,6 +174,10 @@ export function addEntity(store: EntityStore, spec: EntitySpec): Entity {
     job: null,
     buildTargetId: null,
     production: null,
+    attackTargetId: null,
+    weaponCooldown: 0,
+    attackMoveX: null,
+    attackMoveY: null,
   });
 }
 
@@ -196,6 +216,10 @@ export function addBuilding(store: EntityStore, spec: BuildingSpec): Entity {
     job: null,
     buildTargetId: null,
     production: def.produces.length > 0 ? { queue: [], progress: 0, rallyX: null, rallyY: null } : null,
+    attackTargetId: null,
+    weaponCooldown: 0,
+    attackMoveX: null,
+    attackMoveY: null,
   });
 }
 

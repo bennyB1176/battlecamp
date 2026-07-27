@@ -218,3 +218,180 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ---- Legend ----------------------------------------------------------- */
+
+/* A full-screen sheet rather than a small popover: on a phone there is no
+   room for a panel that sits beside the game, and this is a thing you read
+   rather than glance at. */
+#legend {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(6, 9, 13, 0.72);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  backdrop-filter: blur(3px);
+}
+
+#legend[hidden] {
+  display: none;
+}
+
+.legend-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 760px);
+  border-radius: 16px;
+  border: 1px solid var(--panel-border);
+  background: #161b23;
+  overflow: hidden;
+}
+
+.legend-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.legend-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* The sheet scrolls; the map behind it must not. */
+  overscroll-behavior: contain;
+  padding: 4px 14px 18px;
+}
+
+.legend-body h2 {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin: 20px 0 8px;
+}
+
+.legend-body h2:first-child {
+  margin-top: 12px;
+}
+
+.legend-body p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  /* Comfortable measure — long lines are what make help text go unread. */
+  max-width: 62ch;
+  opacity: 0.9;
+}
+
+.legend-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.legend-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.legend-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.legend-role {
+  font-size: 12px;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+.legend-card dl,
+.legend-body > dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.legend-body > dl {
+  max-width: 62ch;
+}
+
+.legend-card dt,
+.legend-body > dl dt {
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.legend-card dd,
+.legend-body > dl dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.legend-colors,
+.legend-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 10px;
+}
+
+.legend-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.legend-building-icon {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  border: 1px solid;
+  flex: none;
+}
+
+.legend-building-icon > span {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 34%;
+}
+
+.legend-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: min(100%, 62ch);
+}
+
+.legend-table th,
+.legend-table td {
+  text-align: left;
+  padding: 5px 14px 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.legend-table th {
+  opacity: 0.6;
+  font-weight: 600;
+}

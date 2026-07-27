@@ -13,11 +13,16 @@
 import { fromTiles } from "../sim/fixed.js";
 import { TICKS_PER_SECOND } from "../sim/constants.js";
 import { Resource, type Cost } from "../sim/resources.js";
+import { Armor, DamageType, type ArmorId, type DamageTypeId, type Weapon } from "./combat.js";
 
 export const UnitType = {
   Worker: 0,
   Soldier: 1,
   Scout: 2,
+  /** Anti-armour and anti-building. Slow, explosive, poor against infantry. */
+  Grenadier: 3,
+  /** Heavy and fast, tears through infantry, helpless against grenadiers. */
+  Vehicle: 4,
 } as const;
 
 export type UnitTypeId = (typeof UnitType)[keyof typeof UnitType];
@@ -34,8 +39,48 @@ export interface UnitDef {
   readonly cost: Cost;
   /** Ticks of training before the unit walks out. */
   readonly trainTicks: number;
-  /** Placeholder colour until sprites exist. */
-  readonly color: string;
+  /**
+   * Which silhouette the renderer draws.
+   *
+   * Shape carries the unit's identity, not colour — colour is reserved for
+   * whose side it is on. Swapping in real sprites later means changing what
+   * this field selects, and nothing else.
+   */
+  readonly shape: UnitShape;
+  readonly armor: ArmorId;
+  /** Null for anything that cannot fight at all. */
+  readonly weapon: Weapon | null;
+}
+
+/** Drawn silhouettes. Each must be recognisable at a glance and from a distance. */
+export const UnitShape = {
+  /** Round and soft — reads as civilian. */
+  Round: "round",
+  /** Pointed — reads as fast. */
+  Arrow: "arrow",
+  /** Broad and flat-fronted — reads as a soldier behind a shield. */
+  Shield: "shield",
+  /** Blunt and heavy-set — reads as someone carrying something explosive. */
+  Wedge: "wedge",
+  /** Angular hull — reads as a machine, not a person. */
+  Hull: "hull",
+} as const;
+
+export type UnitShape = (typeof UnitShape)[keyof typeof UnitShape];
+
+/** Build a weapon, taking reach in tiles and rate of fire in seconds. */
+function weapon(
+  damage: number,
+  damageType: DamageTypeId,
+  rangeTiles: number,
+  cooldownSeconds: number,
+): Weapon {
+  return {
+    damage,
+    damageType,
+    range: fromTiles(rangeTiles),
+    cooldownTicks: Math.max(1, Math.round(cooldownSeconds * TICKS_PER_SECOND)),
+  };
 }
 
 /** Helper so the table below can be written in tiles and tiles/second. */
@@ -47,7 +92,9 @@ function def(
   sightTiles: number,
   cost: Cost,
   trainSeconds: number,
-  color: string,
+  shape: UnitShape,
+  armor: ArmorId,
+  weaponDef: Weapon | null,
 ): UnitDef {
   return {
     name,
@@ -57,16 +104,78 @@ function def(
     sight: fromTiles(sightTiles),
     cost,
     trainTicks: Math.max(1, Math.round(trainSeconds * TICKS_PER_SECOND)),
-    color,
+    shape,
+    armor,
+    weapon: weaponDef,
   };
 }
 
 export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
   // A worker has to pay for itself, or there is no reason ever to stop making
   // them — the cost is what makes "more workers or a forward depot?" a question.
-  [UnitType.Worker]: def("Arbeiter", 40, 0.3, 2.4, 5, { [Resource.Wood]: 50 }, 8, "#d9c26a"),
-  [UnitType.Soldier]: def("Soldat", 80, 0.32, 3.0, 6, { [Resource.Wood]: 40, [Resource.Ore]: 20 }, 12, "#c8553d"),
-  [UnitType.Scout]: def("Späher", 50, 0.28, 4.5, 9, { [Resource.Wood]: 60 }, 10, "#6fb3d9"),
+  // It also carries a feeble weapon: an economy that cannot defend itself at all
+  // means one raider ends the game.
+  [UnitType.Worker]: def(
+    "Arbeiter",
+    40,
+    0.3,
+    2.4,
+    5,
+    { [Resource.Wood]: 50 },
+    8,
+    UnitShape.Round,
+    Armor.Light,
+    weapon(3, DamageType.Normal, 0.8, 1.2),
+  ),
+  [UnitType.Soldier]: def(
+    "Soldat",
+    80,
+    0.32,
+    3.0,
+    6,
+    { [Resource.Wood]: 40, [Resource.Ore]: 20 },
+    12,
+    UnitShape.Shield,
+    Armor.Light,
+    weapon(9, DamageType.Normal, 1.6, 0.8),
+  ),
+  // Sight far beyond its reach: the scout's job is to find things, not fight.
+  [UnitType.Scout]: def(
+    "Späher",
+    50,
+    0.28,
+    4.5,
+    9,
+    { [Resource.Wood]: 60 },
+    10,
+    UnitShape.Arrow,
+    Armor.Light,
+    weapon(5, DamageType.Piercing, 1.4, 1.0),
+  ),
+  [UnitType.Grenadier]: def(
+    "Grenadier",
+    90,
+    0.34,
+    2.2,
+    6,
+    { [Resource.Wood]: 50, [Resource.Ore]: 45 },
+    18,
+    UnitShape.Wedge,
+    Armor.Medium,
+    weapon(16, DamageType.Explosive, 2.2, 1.8),
+  ),
+  [UnitType.Vehicle]: def(
+    "Panzerwagen",
+    180,
+    0.42,
+    3.6,
+    7,
+    { [Resource.Wood]: 60, [Resource.Stone]: 30, [Resource.Ore]: 90 },
+    26,
+    UnitShape.Hull,
+    Armor.Heavy,
+    weapon(14, DamageType.Piercing, 2.0, 0.9),
+  ),
 };
 
 export function unitDef(typeId: UnitTypeId): UnitDef {
