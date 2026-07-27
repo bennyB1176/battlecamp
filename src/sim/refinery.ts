@@ -15,6 +15,7 @@
  */
 
 import { buildingDefOf, isBuilding, isComplete, type Entity } from "./entities.js";
+import { workRate, WORK_RATE_DENOMINATOR } from "./power.js";
 import { credit } from "./resources.js";
 import type { World } from "./world.js";
 
@@ -39,28 +40,21 @@ function stepRefinery(world: World, building: Entity): void {
   const state = building.refinery;
   if (!state) return;
 
+  // Progress counts in half-ticks, not ticks: a building off the power grid
+  // earns one a tick instead of two. Whole numbers keep the world state free of
+  // floating point, which is the whole point of the fixed-point arithmetic.
+  //
   // Nothing to work with: idle, rather than going into debt or banking progress
   // it has not earned. A refinery with no input is a building waiting for work.
   if (player.resources[recipe.input] < recipe.inputAmount) return;
 
-  state.progress += refineryRate(world, building);
-  if (state.progress < recipe.ticks) return;
+  state.progress += workRate(world, building);
+  if (state.progress < recipe.ticks * WORK_RATE_DENOMINATOR) return;
 
   // The input is only taken once the batch is actually finished. Charging up
   // front would let a player destroy their own refinery mid-batch and make the
   // materials vanish, which reads as a bug however it is explained.
   player.resources[recipe.input] -= recipe.inputAmount;
   credit(player, recipe.output, recipe.outputAmount);
-  state.progress -= recipe.ticks;
-}
-
-/**
- * How much progress this refinery makes in one tick.
- *
- * A hook rather than a constant: M5's power grid slows down anything working
- * outside a plant's radius, and that has to bite here without every caller
- * having to know about electricity.
- */
-function refineryRate(_world: World, _building: Entity): number {
-  return 1;
+  state.progress -= recipe.ticks * WORK_RATE_DENOMINATOR;
 }

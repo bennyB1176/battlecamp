@@ -12,6 +12,7 @@ import { unitDef, type UnitTypeId } from "../content/units.js";
 import { buildingDefOf, addEntity, buildingTiles, isComplete, type Entity } from "./entities.js";
 import { tileCenter } from "./fixed.js";
 import { isPassable, regionAtLeast } from "./grid.js";
+import { workRate, WORK_RATE_DENOMINATOR } from "./power.js";
 import { canAfford, credit, debit, RESOURCE_KINDS } from "./resources.js";
 import type { World } from "./world.js";
 
@@ -61,15 +62,17 @@ export function updateProduction(world: World): void {
     if (!isComplete(building)) continue;
 
     const unitType = production.queue[0]!;
-    production.progress++;
+    // Half-ticks, like refining: a barracks off the power grid trains at half
+    // speed rather than not at all.
+    production.progress += workRate(world, building);
 
-    if (production.progress < unitDef(unitType).trainTicks) continue;
+    if (production.progress < unitDef(unitType).trainTicks * WORK_RATE_DENOMINATOR) continue;
 
     const spawn = spawnPoint(world, building);
     if (!spawn) {
       // Completely walled in. Hold the finished unit rather than losing it, and
       // try again next tick.
-      production.progress = unitDef(unitType).trainTicks;
+      production.progress = unitDef(unitType).trainTicks * WORK_RATE_DENOMINATOR;
       continue;
     }
 

@@ -29,6 +29,8 @@ export const BuildingType = {
   Smelter: 5,
   /** Feeds an army. Produces no goods; it raises the food ceiling. */
   Farm: 6,
+  /** Lights a circle. Everything of yours inside it works at full speed. */
+  PowerPlant: 7,
 } as const;
 
 export type BuildingTypeId = (typeof BuildingType)[keyof typeof BuildingType];
@@ -82,6 +84,14 @@ export interface BuildingDef {
    * A ceiling, not a stock: see `src/sim/food.ts` for why nothing accumulates.
    */
   readonly foodSupply: number;
+  /**
+   * How far this building's power reaches, in fixed point. Zero for anything
+   * that generates none.
+   *
+   * Deliberately larger than the build radius: a grid worth having stretches
+   * wider than the base around it, which is exactly what makes it a target.
+   */
+  readonly powerRadius: number;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -100,6 +110,12 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // Enough for the opening dozen, and no more. The first minutes must not be
     // a food puzzle; the bill starts biting the moment a player grows.
     foodSupply: 16,
+    // The base lights its own yard. Without this every barracks would train at
+    // half speed from the first minute, which makes a power plant a mandatory
+    // opening rather than a decision — a tax, not a choice. Power starts
+    // mattering exactly where a base stops: expansions, forward refineries, and
+    // the moment somebody levels the headquarters.
+    powerRadius: fromTiles(6),
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -114,6 +130,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     weapon: null,
     refines: null,
     foodSupply: 0,
+    powerRadius: 0,
   },
   [BuildingType.Barracks]: {
     name: "Kaserne",
@@ -128,6 +145,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     weapon: null,
     refines: null,
     foodSupply: 0,
+    powerRadius: 0,
   },
   [BuildingType.Tower]: {
     name: "Turm",
@@ -146,6 +164,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     weapon: { damage: 12, damageType: DamageType.Piercing, range: fromTiles(4.5), cooldownTicks: 8 },
     refines: null,
     foodSupply: 0,
+    powerRadius: 0,
   },
   [BuildingType.Sawmill]: {
     name: "Sägewerk",
@@ -161,6 +180,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // Twelve seconds a batch. Slow enough that one sawmill is a commitment
     // rather than a formality, fast enough to matter inside a fifteen-minute
     // match.
+    powerRadius: 0,
     foodSupply: 0,
     refines: {
       input: Resource.Wood,
@@ -185,6 +205,24 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     weapon: null,
     refines: null,
     foodSupply: 12,
+    powerRadius: 0,
+  },
+  [BuildingType.PowerPlant]: {
+    name: "Kraftwerk",
+    footprint: 2,
+    maxHp: 440,
+    // Cheaper than the two refineries it typically serves, or nobody would ever
+    // choose it over simply building a second smelter.
+    cost: { [Resource.Wood]: 100, [Resource.Stone]: 90 },
+    buildWork: 210,
+    buildRadius: 3,
+    acceptsDeliveries: false,
+    produces: [],
+    armor: Armor.Building,
+    weapon: null,
+    refines: null,
+    foodSupply: 0,
+    powerRadius: fromTiles(9),
   },
   [BuildingType.Smelter]: {
     name: "Schmelze",
@@ -197,6 +235,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     produces: [],
     armor: Armor.Building,
     weapon: null,
+    powerRadius: 0,
     foodSupply: 0,
     refines: {
       input: Resource.Ore,
@@ -217,6 +256,7 @@ export const BUILDABLE: readonly BuildingTypeId[] = [
   BuildingType.Farm,
   BuildingType.Depot,
   BuildingType.Barracks,
+  BuildingType.PowerPlant,
   BuildingType.Sawmill,
   BuildingType.Smelter,
   BuildingType.Tower,
