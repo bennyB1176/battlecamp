@@ -56,7 +56,7 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 | ? | Legende und Anleitung |
 | Mausrad | Zoomen (Desktop) |
 | Leertaste / ⏸ | Pause |
-| 1× / 2× / 4× | Zeitraffer |
+| ▶ antippen | Tempo: 1× → 2× → 4× → 1× |
 
 Auf dem Handy gibt es keine rechte Maustaste, und Ein-Finger-Ziehen ist fürs Verschieben der Karte
 vergeben. Der Auswahlrahmen bekommt deshalb einen eigenen Modus-Knopf, der sich nach der Auswahl

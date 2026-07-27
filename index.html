@@ -44,9 +44,10 @@
 
       <div id="hud-bottom">
         <button class="ctrl" id="btn-pause" aria-label="Pause">⏸</button>
-        <button class="ctrl speed" data-speed="1">1×</button>
-        <button class="ctrl speed" data-speed="2">2×</button>
-        <button class="ctrl speed" data-speed="4">4×</button>
+        <!-- One button, not three: in portrait the row used to run off the
+             screen, and the first thing lost was the help button. Tapping
+             cycles 1x, 2x, 4x and back. -->
+        <button class="ctrl" id="btn-speed">▶︎</button>
         <button class="ctrl" id="btn-center" aria-label="Zentrieren">⌖</button>
         <!-- Touch has no right mouse button, so box-select needs its own mode. -->
         <button class="ctrl" id="btn-select" aria-label="Auswahlmodus">⬚</button>
