@@ -41,6 +41,12 @@ Dauerhaft erzwingen lässt sich das nur in den Repo-Einstellungen:
 - **Ansichtscode wird im Browser geprüft**, nicht nur per Unit-Test. Mehrere
   echte Fehler dieses Projekts waren reine Bedienbarkeitsfragen und wären in
   keinem Unit-Test aufgefallen.
+- **Ein neues Teilsystem ist erst fertig, wenn `main.ts` es aufruft.** Der Bot
+  war über acht Seeds getestet, durch fünf Fehler nachjustiert — und wurde vom
+  Spiel nie aufgerufen. Alle Tests grün, auf dem Telefon ein Gegner, der
+  regungslos dasteht. Tests beweisen, dass eine Sache funktioniert, nicht dass
+  sie stattfindet. Die Verdrahtung gehört in ein eigenes Modul mit eigenen
+  Tests, nicht in ein paar Zeilen im Einstiegspunkt, an die kein Test kommt.
 - Vor jedem Push: `npm run typecheck`, `npm test`, `npm run build`,
   `npm run scan:secrets`.
 
