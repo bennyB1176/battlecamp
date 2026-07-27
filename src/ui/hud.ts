@@ -1,10 +1,14 @@
 /**
- * HUD wiring: turns the buttons declared in `index.html` into callbacks and
- * exposes a small handle for pushing text back out.
+ * HUD wiring: turns the markup in `index.html` into callbacks, and exposes a
+ * small handle for pushing state back out.
  *
- * Deliberately plain DOM. The HUD will grow a lot (build menu, selection panel,
- * minimap), but reaching for a UI framework before we know the shape of those
- * panels would be guessing.
+ * The context panel is rebuilt from a description of what the selection can do,
+ * rather than the HUD reaching into the world to work it out for itself. That
+ * keeps the "what is possible" question in one place — `main.ts` — instead of
+ * splitting it between the rules and the buttons that trigger them.
+ *
+ * Deliberately plain DOM. The panel will grow a lot over the next milestones,
+ * and reaching for a framework before its shape is known would be guessing.
  */
 
 export interface HudCallbacks {
@@ -12,6 +16,19 @@ export interface HudCallbacks {
   onSetSpeed: (speed: number) => void;
   onCenter: () => void;
   onToggleSelectMode: () => void;
+  onToggleBuildMenu: () => void;
+}
+
+/** One button in the context panel. */
+export interface HudAction {
+  readonly id: string;
+  readonly label: string;
+  /** Second line, typically a price. */
+  readonly detail?: string;
+  readonly disabled?: boolean;
+  /** Shown as active — a build type awaiting placement, for instance. */
+  readonly armed?: boolean;
+  readonly onSelect: () => void;
 }
 
 export interface Hud {
@@ -20,6 +37,10 @@ export interface Hud {
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: number) => void;
   setSelectMode: (active: boolean) => void;
+  setBuildMode: (active: boolean) => void;
+  setResources: (wood: number, stone: number, ore: number) => void;
+  /** Replace the context panel. An empty action list hides it. */
+  setContext: (title: string, actions: readonly HudAction[]) => void;
 }
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -34,11 +55,21 @@ export function createHud(callbacks: HudCallbacks): Hud {
   const pauseButton = requireElement<HTMLButtonElement>("btn-pause");
   const centerButton = requireElement<HTMLButtonElement>("btn-center");
   const selectButton = requireElement<HTMLButtonElement>("btn-select");
+  const buildButton = requireElement<HTMLButtonElement>("btn-build");
   const speedButtons = [...document.querySelectorAll<HTMLButtonElement>(".ctrl.speed")];
+
+  const wood = requireElement<HTMLSpanElement>("res-wood");
+  const stone = requireElement<HTMLSpanElement>("res-stone");
+  const ore = requireElement<HTMLSpanElement>("res-ore");
+
+  const context = requireElement<HTMLDivElement>("hud-context");
+  const contextTitle = requireElement<HTMLDivElement>("context-title");
+  const contextActions = requireElement<HTMLDivElement>("context-actions");
 
   pauseButton.addEventListener("click", callbacks.onTogglePause);
   centerButton.addEventListener("click", callbacks.onCenter);
   selectButton.addEventListener("click", callbacks.onToggleSelectMode);
+  buildButton.addEventListener("click", callbacks.onToggleBuildMenu);
 
   for (const button of speedButtons) {
     button.addEventListener("click", () => {
@@ -46,13 +77,15 @@ export function createHud(callbacks: HudCallbacks): Hud {
     });
   }
 
-  // Space bar is the pause key everyone already expects on desktop.
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space") {
       event.preventDefault();
       callbacks.onTogglePause();
     }
   });
+
+  /** Remembered so the panel is only rebuilt when it actually changed. */
+  let renderedSignature = "";
 
   return {
     setClock: (text) => {
@@ -73,6 +106,56 @@ export function createHud(callbacks: HudCallbacks): Hud {
     },
     setSelectMode: (active) => {
       selectButton.classList.toggle("active", active);
+    },
+    setBuildMode: (active) => {
+      buildButton.classList.toggle("active", active);
+    },
+    setResources: (woodAmount, stoneAmount, oreAmount) => {
+      wood.textContent = String(woodAmount);
+      stone.textContent = String(stoneAmount);
+      ore.textContent = String(oreAmount);
+    },
+    setContext: (title, actions) => {
+      // Rebuilding the panel on every frame would kill any button mid-tap on a
+      // touchscreen, so it is only redrawn when its content actually differs.
+      const signature = `${title}|${actions
+        .map((action) => `${action.id}:${action.label}:${action.detail ?? ""}:${action.disabled ? 1 : 0}:${action.armed ? 1 : 0}`)
+        .join(",")}`;
+      if (signature === renderedSignature) return;
+      renderedSignature = signature;
+
+      if (actions.length === 0) {
+        context.hidden = true;
+        contextActions.replaceChildren();
+        return;
+      }
+
+      context.hidden = false;
+      contextTitle.textContent = title;
+
+      contextActions.replaceChildren(
+        ...actions.map((action) => {
+          const button = document.createElement("button");
+          button.className = "action";
+          button.type = "button";
+          if (action.armed) button.classList.add("armed");
+          button.disabled = action.disabled ?? false;
+
+          const label = document.createElement("span");
+          label.textContent = action.label;
+          button.appendChild(label);
+
+          if (action.detail) {
+            const detail = document.createElement("span");
+            detail.className = "cost";
+            detail.textContent = action.detail;
+            button.appendChild(detail);
+          }
+
+          button.addEventListener("click", action.onSelect);
+          return button;
+        }),
+      );
     },
   };
 }

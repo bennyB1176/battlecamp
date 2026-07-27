@@ -118,3 +118,103 @@ body {
   color: var(--accent);
   background: rgba(255, 214, 102, 0.16);
 }
+
+/* Resource readout. Colour-coded dots rather than words, so the bar stays
+   narrow enough for a phone in portrait. */
+.pill.resources {
+  display: flex;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.res::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: baseline;
+}
+
+.res-wood::before {
+  background: #6ba85a;
+}
+.res-stone::before {
+  background: #c9c6bd;
+}
+.res-ore::before {
+  background: #d69a4c;
+}
+
+/* Sits just above the control row, only while something is selected. */
+#hud-context {
+  pointer-events: auto;
+  align-self: flex-start;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  max-width: min(100%, 520px);
+}
+
+#hud-context[hidden] {
+  display: none;
+}
+
+#context-title {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-bottom: 6px;
+}
+
+#context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Action buttons carry a label and a price, so a player never has to remember
+   what something costs to decide whether to tap it. */
+.action {
+  pointer-events: auto;
+  min-height: 44px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  touch-action: manipulation;
+}
+
+.action:active {
+  transform: scale(0.96);
+}
+
+.action .cost {
+  font-size: 11px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unaffordable actions stay visible but clearly out of reach — hiding them
+   would leave the player wondering what they are missing. */
+.action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.action.armed {
+  border-color: var(--accent);
+  color: var(--accent);
+}

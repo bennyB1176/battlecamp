@@ -10,9 +10,8 @@
  * selected simply stops resolving instead of leaving a dangling object alive.
  */
 
-import { unitDef } from "../content/units.js";
 import type { Entity, EntityId, PlayerId } from "../sim/entities.js";
-import { getEntity } from "../sim/entities.js";
+import { getEntity, isBuilding, radiusOf } from "../sim/entities.js";
 import { distSq, ONE } from "../sim/fixed.js";
 import type { World } from "../sim/world.js";
 
@@ -76,7 +75,7 @@ export function selectAt(
   for (const entity of world.entities.list) {
     if (entity.owner !== playerId) continue;
 
-    const reach = Math.max(unitDef(entity.typeId).radius, MIN_TAP_RADIUS);
+    const reach = Math.max(radiusOf(entity), MIN_TAP_RADIUS);
     const separationSq = distSq(entity.x, entity.y, x, y);
     if (separationSq > reach * reach) continue;
 
@@ -116,6 +115,9 @@ export function selectInBox(
 
   for (const entity of world.entities.list) {
     if (entity.owner !== playerId) continue;
+    // A box drag means "these troops", not "and also the headquarters they
+    // happened to be standing next to" — buildings are selected by tapping.
+    if (isBuilding(entity)) continue;
     if (entity.x < minX || entity.x > maxX) continue;
     if (entity.y < minY || entity.y > maxY) continue;
     selection.ids.add(entity.id);

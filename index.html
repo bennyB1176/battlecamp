@@ -23,8 +23,20 @@
 
     <div id="hud">
       <div id="hud-top">
+        <div class="pill resources">
+          <span class="res res-wood" id="res-wood">0</span>
+          <span class="res res-stone" id="res-stone">0</span>
+          <span class="res res-ore" id="res-ore">0</span>
+        </div>
         <div class="pill" id="clock">0:00</div>
         <div class="pill" id="stats">–</div>
+      </div>
+
+      <!-- Context panel: what the current selection can do. Empty when nothing
+           is selected, so it never takes up room it has not earned. -->
+      <div id="hud-context" hidden>
+        <div id="context-title"></div>
+        <div id="context-actions"></div>
       </div>
 
       <div id="hud-bottom">
@@ -35,6 +47,7 @@
         <button class="ctrl" id="btn-center" aria-label="Zentrieren">⌖</button>
         <!-- Touch has no right mouse button, so box-select needs its own mode. -->
         <button class="ctrl" id="btn-select" aria-label="Auswahlmodus">⬚</button>
+        <button class="ctrl" id="btn-build" aria-label="Bauen">🔨</button>
       </div>
     </div>
 
