@@ -9,6 +9,10 @@ Handy spielbar, Strategie vor Fingerfertigkeit.
 > Status: **M4** — es gibt echte Gegner. Drei Schwierigkeitsgrade, die sich messbar
 > unterscheiden, und ein Headless-Match-Runner, der ganze Partien ohne Fenster
 > durchrechnet: `npm run match -- --seeds 8 --bots leicht,schwer`.
+>
+> Den Gegner wählt man vorerst über die Adresse — `?gegner=leicht`, `?gegner=normal`
+> (Standard) oder `?gegner=schwer`. Ein richtiges Menü kommt mit dem
+> Skirmish-Setup in M8.
 
 ## Schnellstart
 

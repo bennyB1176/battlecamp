@@ -13,6 +13,8 @@
  * simulation to enforce what is legal and the HUD to draw buttons.
  */
 
+import { createOpponents, difficultyFromName, opponentCommands } from "./ai/opponents.js";
+import { DIFFICULTY_NAMES } from "./ai/bot.js";
 import { BUILDABLE, buildingDef, type BuildingTypeId } from "./content/buildings.js";
 import { unitDef, UnitType } from "./content/units.js";
 import { attachCameraControls, centerOn, createCamera, type Camera, type WorldBox } from "./input/camera.js";
@@ -94,11 +96,17 @@ function start(): void {
   const camera: Camera = createCamera(world.grid.width, world.grid.height);
   const renderer = createRenderer(canvas, world);
 
+  // Until the skirmish setup screen exists, the difficulty comes from the URL:
+  // ?gegner=leicht | normal | schwer. Anything else means Normal. It is not a
+  // menu, but it is one link away on a phone, which is what matters today.
+  const difficulty = difficultyFromName(new URLSearchParams(window.location.search).get("gegner"));
+  const opponents = createOpponents(world, LOCAL_PLAYER, difficulty);
+
   /**
-   * Commands issued since the last tick. Everything — taps now, bot decisions
-   * later — lands here and is drained at the next tick boundary. While paused
-   * it simply grows, and the renderer draws it dashed so the player can see
-   * their queued intent.
+   * Commands issued by the *player* since the last tick, drained at the next
+   * tick boundary. The opponents' commands join them there rather than here, so
+   * that pausing stops the bots too. While paused this list simply grows, and
+   * the renderer draws it dashed so the player can see their queued intent.
    */
   let pendingCommands: Command[] = [];
 
@@ -524,7 +532,10 @@ function start(): void {
       let ticksThisFrame = 0;
       while (accumulator >= MS_PER_TICK && ticksThisFrame < MAX_TICKS_PER_FRAME) {
         const tickStarted = performance.now();
-        tickWorld(world, pendingCommands);
+        // The opponents think inside the tick loop, not once per frame: they
+        // have to get a turn for every tick that passes, or fast-forward would
+        // quietly make them slower the faster the game runs.
+        tickWorld(world, [...pendingCommands, ...opponentCommands(opponents, world)]);
         lastTickMs = performance.now() - tickStarted;
 
         // Fresh array rather than length = 0: the old one may still be
@@ -581,8 +592,10 @@ function start(): void {
       fpsWindowStart = now;
 
       hud.setClock(`${formatClock(world.tick)}${paused ? " ⏸" : ""}`);
+      // The difficulty is in here because there is no menu yet: without it the
+      // player has no way to tell whether ?gegner=schwer actually took effect.
       hud.setStats(
-        `${fps} fps · ${world.entities.list.length} Obj. · ` +
+        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · ${fps} fps · ${world.entities.list.length} Obj. · ` +
           `Sim ${lastTickMs.toFixed(2)} ms · Frame ${renderer.lastFrameMs.toFixed(2)} ms`,
       );
     }
