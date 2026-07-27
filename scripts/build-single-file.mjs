@@ -42,6 +42,15 @@ function inlineAssets(html) {
   // The manifest is a separate file that a standalone page cannot reach.
   result = result.replace(/<link[^>]*rel="manifest"[^>]*>\s*/g, "");
 
+  // Icons become data URIs rather than being dropped: a page opened from a
+  // phone's Files app can still be saved to the home screen, and that is half
+  // the reason this build exists.
+  result = result.replace(/href="\.?\/?([^"]+\.(?:svg|png))"/g, (_match, href) => {
+    const type = href.endsWith(".svg") ? "image/svg+xml" : "image/png";
+    const bytes = readFileSync(join(distDir, href));
+    return `href="data:${type};base64,${bytes.toString("base64")}"`;
+  });
+
   return result;
 }
 
@@ -58,7 +67,7 @@ console.log(`build-single-file: ${outputPath} (${sizeKb} kB)`);
 
 // Sanity check: an unnoticed leftover reference would produce a page that looks
 // standalone and silently fails to start when opened without a server.
-const leftovers = [...standalone.matchAll(/(?:src|href)="([^"]*\.(?:js|css|webmanifest))"/g)];
+const leftovers = [...standalone.matchAll(/(?:src|href)="([^"]*\.(?:js|css|webmanifest|png|svg))"/g)];
 if (leftovers.length > 0) {
   console.error(`build-single-file: still references external files: ${leftovers.map((m) => m[1]).join(", ")}`);
   process.exit(1);
