@@ -74,6 +74,10 @@ export interface BuildingEntry {
   readonly weaponText: string | null;
   /** What it converts, or null when it converts nothing. */
   readonly refinesText: string | null;
+  /** How many units it feeds, or null when it feeds none. */
+  readonly foodText: string | null;
+  /** How far its power reaches, or null when it generates none. */
+  readonly powerText: string | null;
 }
 
 /**
@@ -171,6 +175,9 @@ export function buildingEntries(): BuildingEntry[] {
           ? describeWeapon(def.weapon.damage, def.weapon.damageType, def.weapon.range, def.weapon.cooldownTicks)
           : null,
         refinesText: def.refines ? describeRecipe(def.refines) : null,
+        foodText: def.foodSupply > 0 ? `versorgt ${def.foodSupply} Nahrung` : null,
+        powerText:
+          def.powerRadius > 0 ? `${toTiles(def.powerRadius).toFixed(0)} Kacheln Umkreis` : null,
       };
     });
 }

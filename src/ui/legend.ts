@@ -183,6 +183,20 @@ function buildContent(): DocumentFragment {
     ),
   );
 
+  fragment.append(heading("Strom"));
+  fragment.append(
+    paragraph(
+      "Das Hauptquartier versorgt seinen eigenen Hof. Alles, was weiter draußen steht — eine " +
+        "Schmelze am Erz, eine vorgeschobene Kaserne — arbeitet nur halb so schnell, bis ein " +
+        "Kraftwerk es abdeckt.",
+    ),
+    paragraph(
+      "Nichts schaltet sich ganz ab: ein Gebäude ohne Strom wird langsam, nicht tot. Dafür ist " +
+        "ein Kraftwerk das lohnendste Ziel auf der Karte — es ist die Leistung mehrerer Gebäude " +
+        "in einem einzigen, das man niederbrennen kann.",
+    ),
+  );
+
   fragment.append(heading("Einheiten"));
   const units = document.createElement("div");
   units.className = "legend-cards";
@@ -262,6 +276,8 @@ function buildContent(): DocumentFragment {
     ];
     if (entry.acceptsDeliveries) rows.push(["Abgabe", "Arbeiter liefern hier ab"]);
     if (entry.refinesText) rows.push(["Veredelt", entry.refinesText]);
+    if (entry.foodText) rows.push(["Nahrung", entry.foodText]);
+    if (entry.powerText) rows.push(["Strom", entry.powerText]);
     if (entry.trains.length > 0) rows.push(["Bildet aus", entry.trains.join(", ")]);
     if (entry.weaponText) rows.push(["Waffe", entry.weaponText]);
 

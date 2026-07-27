@@ -37,6 +37,15 @@ function blankWorld(): World {
   return world;
 }
 
+/**
+ * A plant well clear of the refineries under test, so these measure refining at
+ * full speed. Power has its own file; mixing the two here would mean every
+ * recipe assertion silently depended on where the buildings happened to stand.
+ */
+function powerAll(world: World): void {
+  place(world, BuildingType.PowerPlant, 12, 12);
+}
+
 function place(world: World, typeId: number, tileX = 10, tileY = 10) {
   const building = placeBuildingAt(world, 0, typeId as never, tileX, tileY, {
     free: true,
@@ -51,6 +60,7 @@ describe("the sawmill", () => {
   it("turns wood into planks", () => {
     const world = blankWorld();
     place(world, BuildingType.Sawmill);
+    powerAll(world);
     world.players[0]!.resources[Resource.Wood] = 500;
 
     const recipe = buildingDef(BuildingType.Sawmill).refines!;
@@ -63,6 +73,7 @@ describe("the sawmill", () => {
   it("keeps going as long as there is wood", () => {
     const world = blankWorld();
     place(world, BuildingType.Sawmill);
+    powerAll(world);
     world.players[0]!.resources[Resource.Wood] = 500;
 
     const recipe = buildingDef(BuildingType.Sawmill).refines!;
@@ -76,6 +87,7 @@ describe("the sawmill", () => {
     // building waiting for work, not a hole in the economy.
     const world = blankWorld();
     place(world, BuildingType.Sawmill);
+    powerAll(world);
     const recipe = buildingDef(BuildingType.Sawmill).refines!;
 
     for (let tick = 0; tick < recipe.ticks * 2; tick++) tickWorld(world);
@@ -102,6 +114,7 @@ describe("the sawmill", () => {
   it("banks into the owner's pool and nobody else's", () => {
     const world = blankWorld();
     place(world, BuildingType.Sawmill);
+    powerAll(world);
     world.players[0]!.resources[Resource.Wood] = 500;
     world.players[1]!.resources[Resource.Wood] = 500;
 
@@ -118,6 +131,7 @@ describe("the smelter", () => {
   it("turns ore into steel", () => {
     const world = blankWorld();
     place(world, BuildingType.Smelter);
+    powerAll(world);
     world.players[0]!.resources[Resource.Ore] = 500;
 
     const recipe = buildingDef(BuildingType.Smelter).refines!;
@@ -134,6 +148,7 @@ describe("the smelter", () => {
     const world = blankWorld();
     place(world, BuildingType.Smelter, 10, 10);
     place(world, BuildingType.Smelter, 14, 10);
+    powerAll(world);
     world.players[0]!.resources[Resource.Ore] = 900;
 
     const recipe = buildingDef(BuildingType.Smelter).refines!;

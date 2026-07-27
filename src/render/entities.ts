@@ -463,6 +463,46 @@ export function drawBuildOverlay(
 
   ctx.stroke();
   ctx.restore();
+
+  drawPowerRings(ctx, world, camera, playerId);
+}
+
+/**
+ * The edge of every one of the player's power circles, drawn only while the
+ * build menu is open.
+ *
+ * Without it, power is a rule the player is told about and can never see. The
+ * whole point of the rule is that *where* a building stands changes what it
+ * does, and that decision is made at exactly this moment — with a footprint in
+ * hand, looking for somewhere to put it. Shown only while placing, because a
+ * permanent set of circles over the map would be clutter the other 95% of the
+ * time.
+ */
+function drawPowerRings(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  camera: Camera,
+  playerId: number,
+): void {
+  ctx.save();
+  ctx.strokeStyle = "rgba(120, 200, 255, 0.55)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 5]);
+
+  for (const entity of world.entities.list) {
+    if (entity.owner !== playerId) continue;
+    if (!isBuilding(entity) || !isComplete(entity)) continue;
+
+    const radius = buildingDefOf(entity).powerRadius;
+    if (radius <= 0) continue;
+
+    const center = worldToScreen(camera, toTiles(entity.x), toTiles(entity.y));
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, toTiles(radius) * camera.tileSize, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 /** A faint line from each selected unit to where it was told to go. */
