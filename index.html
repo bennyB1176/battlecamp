@@ -10,6 +10,12 @@
     />
     <meta name="theme-color" content="#12161c" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS reads its own prefixed variants. With these, "Zum Home-Bildschirm"
+         launches the game without Safari's chrome eating a third of the screen. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Battlecamp" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./src/ui/style.css" />
   </head>
   <body>

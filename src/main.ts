@@ -202,4 +202,10 @@ function start(): void {
   requestAnimationFrame(frame);
 }
 
-start();
+// The bundle may be inlined ahead of the markup (single-file builds), so wait
+// for the DOM rather than assuming the canvas already exists.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", start, { once: true });
+} else {
+  start();
+}

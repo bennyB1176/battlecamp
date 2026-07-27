@@ -22,6 +22,9 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* Stop iOS from bumping font sizes when the device rotates. */
   -webkit-text-size-adjust: 100%;
+  /* Kill rubber-band scrolling and pull-to-refresh — on a map you drag around,
+     both feel like the game stuttering. */
+  overscroll-behavior: none;
 }
 
 #game {
@@ -36,6 +39,9 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* iOS Safari otherwise pops a share/copy callout on a long press, right in
+     the middle of what will become the unit context menu. */
+  -webkit-touch-callout: none;
 }
 
 /* The HUD floats above the canvas but lets pointer events through, except on

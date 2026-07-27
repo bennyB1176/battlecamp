@@ -20,6 +20,7 @@ npm run dev -- --host   # dann vom Handy im gleichen WLAN öffnen
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest, inklusive Determinismus- und Abnahme-Suite |
 | `npm run build` | Typecheck + Produktions-Build nach `dist/` |
+| `npm run build:single` | Alles in eine Datei: `dist-single/battlecamp.html` |
 | `npm run scan:secrets` | gitleaks über Arbeitskopie und Historie |
 | `npm run hooks:install` | Pre-commit-Hook aktivieren (optional) |
 
@@ -42,6 +43,28 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 Auf dem Handy gibt es keine rechte Maustaste, und Ein-Finger-Ziehen ist fürs Verschieben der Karte
 vergeben. Der Auswahlrahmen bekommt deshalb einen eigenen Modus-Knopf, der sich nach der Auswahl
 von selbst wieder ausschaltet.
+
+## Auf dem Handy testen
+
+Drei Wege, je nachdem was du gerade brauchst:
+
+**Im gleichen WLAN** — `npm run dev -- --host`, dann die angezeigte Netzwerk-Adresse am Telefon
+öffnen. Hot Reload inklusive: speichern am Rechner, das Handy lädt neu.
+
+**GitHub Pages** — jeder Push auf `main` oder einen `claude/**`-Branch baut, testet und
+veröffentlicht automatisch (`.github/workflows/pages.yml`). Einmalig nötig, sonst schlägt der
+Deploy fehl:
+
+> Settings → Pages → Build and deployment → Source: **GitHub Actions**
+
+Danach liegt das Spiel unter `https://bennyb1176.github.io/battlecamp/`. Pages bedient eine
+einzige Live-Seite — es zeigt also immer den zuletzt gepushten Branch.
+
+**Eine Datei zum Weitergeben** — `npm run build:single` legt `dist-single/battlecamp.html` an:
+das komplette Spiel in ~24 kB, ohne Server lauffähig. Reicht für AirDrop, Anhang oder itch.io.
+
+Auf iOS lohnt sich „Teilen → Zum Home-Bildschirm": das Manifest startet das Spiel im Vollbild,
+ohne dass Safaris Leisten ein Drittel des Schirms wegnehmen.
 
 ## Architektur
 

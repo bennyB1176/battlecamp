@@ -1,0 +1,11 @@
+{
+  "name": "Battlecamp",
+  "short_name": "Battlecamp",
+  "description": "2D-Echtzeitstrategie zwischen Command & Conquer und Die Siedler",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#12161c",
+  "theme_color": "#12161c"
+}

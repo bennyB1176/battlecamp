@@ -6,3 +6,4 @@ dist/
 # Downloaded tooling (gitleaks binary), pinned and checksummed by
 # scripts/scan-secrets.sh — cached locally, never committed.
 .cache/
+dist-single/

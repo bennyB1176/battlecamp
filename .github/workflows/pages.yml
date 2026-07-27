@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+# Publishes the playable build so it can be opened on a phone.
+#
+# One manual step is required once, in the repository settings:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# Without it this workflow builds fine and then fails to deploy.
+#
+# The development branch deploys too, not just main: the whole point is to test
+# work in progress on a real device. GitHub Pages serves a single live site, so
+# whichever branch pushed last is what the URL shows.
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; finish the running one, then take the newest.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Deploying something that fails its own tests would be a strange thing
+      # to hand someone to play with.
+      - name: Test
+        run: npm test
+
+      # vite.config.ts sets base: "./", so the build works from the project
+      # sub-path GitHub Pages serves it under, with no extra configuration.
+      - name: Build
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
