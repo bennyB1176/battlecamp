@@ -6,8 +6,8 @@ Handy spielbar, Strategie vor Fingerfertigkeit.
 
 **▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
 
-> Status: **M2** — Wirtschaft läuft. Arbeiter bauen Holz, Stein und Erz ab, das Hauptquartier
-> bildet Arbeiter aus, Lager lassen sich bauen. Produktion und Kampf kommen in M3.
+> Status: **M3** — es wird gekämpft. Kaserne, fünf Einheitentypen mit Konter-Dreieck,
+> Verteidigungstürme, Siegbedingung. Echte Bot-Gegner kommen in M4.
 
 ## Schnellstart
 
@@ -40,6 +40,9 @@ Keine Runtime-Abhängigkeiten — nur TypeScript, Vite und Vitest zur Entwicklun
 | Auf Gelände tippen (mit Auswahl) | Bewegungsbefehl |
 | Auf Gelände tippen (ohne Auswahl) | Markierung setzen |
 | Auf Hauptquartier tippen | Arbeiter ausbilden |
+| Auf Kaserne tippen | Soldat, Grenadier oder Panzerwagen ausbilden |
+| Auf Gegner tippen (mit Kampfeinheiten) | Angreifen |
+| ⚔ dann tippen | Angriffsbewegung — engagiert, was unterwegs auftaucht |
 | 🔨 dann Gebäude wählen | Bauen — erlaubte Fläche wird markiert |
 | ⬚ dann ziehen | Auswahlrahmen über mehrere Einheiten |
 | Mausrad | Zoomen (Desktop) |
@@ -169,7 +172,14 @@ Zwei Regeln erzwingen echte Wirtschaftsentscheidungen statt Dauer-Rush:
 - **Energie wirkt im Radius** — Basis-Layout wird zur Entscheidung, Kraftwerke zu lohnenden Zielen
 
 **Kampf** — Tiefe über eine Schadens-/Rüstungsmatrix (normal / explosiv / durchschlagend gegen
-leicht / mittel / schwer / Gebäude) statt über Grafik.
+leicht / mittel / schwer / Gebäude) statt über Grafik. Das Konter-Dreieck schließt sich:
+Panzerwagen zerreißen Infanterie, Grenadiere knacken Panzerwagen, Infanterie schlägt Grenadiere.
+Kein Typ ist die Antwort auf alles — deshalb lohnt sich Aufklärung.
+
+**Darstellung** — Farbe sagt *wessen*, Form sagt *was*. Farbe ist für den Spieler reserviert und
+wird nie für Einheitentypen ausgegeben; andersherum wären der eigene und der gegnerische Soldat
+im Getümmel nicht zu unterscheiden. Alles ist als Canvas-Pfad gezeichnet, keine Bilddateien —
+echte Sprites können später eintreten, ohne dass sich am Aufbau etwas ändert.
 
 **Völker** — Union (ausgewogen, Fahrzeuge), Klan (wirtschaftsstark, defensiv), Brut (schnell, billig,
 organisch). Data-driven definiert; ein neues Volk ist im Wesentlichen eine Content-Datei.
@@ -184,7 +194,7 @@ rotationssymmetrischen Startpositionen.
 | **M0** | Gerüst | ✅ Karte auf dem Handy flüssig scroll- und zoombar, Pause hält den Tick an |
 | **M1** | Einheiten & Bewegung | ✅ 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
 | **M2** | Wirtschaft & Bau | ✅ Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
-| M3 | Produktion & Kampf | Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
+| **M3** | Produktion & Kampf | ✅ Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
 | M4 | Echte Bots | Bot vs. Bot läuft 20 Minuten stabil, Mensch verliert gegen „Schwer" |
 | M5 | Ketten, Nahrung, Energie | Erster Balance-Pass über Massen-Headless-Matches |
 | M6 | Fog of War | Aufklärung zählt, Bots respektieren den Nebel |

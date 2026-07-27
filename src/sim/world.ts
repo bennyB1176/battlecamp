@@ -15,7 +15,8 @@
 import { BuildingType, buildingDef } from "../content/buildings.js";
 import { UnitType } from "../content/units.js";
 import { applyCommand, type Command } from "./commands.js";
-import { addEntity, createEntityStore, type EntityStore } from "./entities.js";
+import { addEntity, createEntityStore, type EntityStore, type PlayerId } from "./entities.js";
+import { updateCombat } from "./combat.js";
 import { placeBuildingAt, updateConstruction } from "./construction.js";
 import { updateEconomy } from "./economy.js";
 import { ONE, tileCenter } from "./fixed.js";
@@ -25,6 +26,7 @@ import { updateMovement } from "./movement.js";
 import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from "./pathing.js";
 import { updateProduction } from "./production.js";
 import { createPlayer, Resource, stockDeposits, type Player } from "./resources.js";
+import { updateVictory } from "./victory.js";
 import { createRng, type Rng } from "./rng.js";
 import { createSpatialHash, type SpatialHash } from "./spatial.js";
 
@@ -97,6 +99,9 @@ export interface World {
    * simulation never needs to know a renderer exists.
    */
   terrainVersion: number;
+  /** Set once the match is decided. Null winner with matchOver means a draw. */
+  winner: PlayerId | null;
+  matchOver: boolean;
   markers: Marker[];
 }
 
@@ -128,6 +133,8 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
     spatial: createSpatialHash(2 * ONE),
     terrainDirty: false,
     terrainVersion: 0,
+    winner: null,
+    matchOver: false,
     markers: [],
   };
 
@@ -226,7 +233,13 @@ export function tickWorld(world: World, commands: readonly Command[] = []): void
   updateProduction(world);
   updateEconomy(world);
   updateConstruction(world);
+  // Combat before movement: fighting decides where units want to be (or that
+  // they should stand still and shoot), and movement then carries that out.
+  // It also needs the spatial index from last tick's rebuild, which is exactly
+  // what movement leaves behind.
+  updateCombat(world);
   updateMovement(world.grid, world.entities.list, world.fields, world.spatial);
+  updateVictory(world);
   updateMarkers(world);
 
   // Terrain changed this tick (a forest felled, a building finished), so every

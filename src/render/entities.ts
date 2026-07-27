@@ -227,6 +227,32 @@ function traceUnitShape(ctx: CanvasRenderingContext2D, shape: string, radius: nu
       ctx.closePath();
       return;
     }
+    case UnitShape.Wedge: {
+      // Blunt and heavy-set: reads as someone hauling something explosive.
+      const w = radius * 1.1;
+      const h = radius * 1.15;
+      ctx.moveTo(w * 0.55, -h * 0.75);
+      ctx.lineTo(w, 0);
+      ctx.lineTo(w * 0.55, h * 0.75);
+      ctx.lineTo(-w * 0.9, h * 0.85);
+      ctx.lineTo(-w * 0.9, -h * 0.85);
+      ctx.closePath();
+      return;
+    }
+    case UnitShape.Hull: {
+      // Angular, symmetric, with a cut-off nose: reads as a machine, not a
+      // person — which is the whole point of a vehicle silhouette.
+      const w = radius * 1.25;
+      const h = radius * 0.95;
+      ctx.moveTo(w * 0.6, -h);
+      ctx.lineTo(w, -h * 0.45);
+      ctx.lineTo(w, h * 0.45);
+      ctx.lineTo(w * 0.6, h);
+      ctx.lineTo(-w, h);
+      ctx.lineTo(-w, -h);
+      ctx.closePath();
+      return;
+    }
     case UnitShape.Round:
     default: {
       // Soft and round: reads as civilian, not a threat.

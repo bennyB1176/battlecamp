@@ -16,7 +16,7 @@
  */
 
 import { isUnit, unitDefOf, type Entity } from "./entities.js";
-import { clamp, dist, distSq, isqrt, ONE, toTileIndex } from "./fixed.js";
+import { clamp, dist, distSq, isqrt, ONE, tileCenter, toTileIndex } from "./fixed.js";
 import { isPassable, type TileGrid } from "./grid.js";
 import { flowDirectionAt, getFlowField, isReachable, type FlowFieldCache } from "./pathing.js";
 import { queryRadius, rebuildSpatialHash, type SpatialHash } from "./spatial.js";
@@ -270,4 +270,38 @@ export function clampGoalToMap(grid: TileGrid, x: number, y: number): { x: numbe
     x: clamp(x, 0, grid.width * ONE - 1),
     y: clamp(y, 0, grid.height * ONE - 1),
   };
+}
+
+/** How far to look for open ground when a destination is inside something solid. */
+const SNAP_SEARCH_TILES = 10;
+
+/**
+ * Move a destination onto ground that can actually be walked to.
+ *
+ * Tapping an enemy headquarters is the single most natural way to say "go
+ * there and deal with that" — and it names a tile the building itself blocks.
+ * A flow field to an impassable goal is unreachable *everywhere*, so without
+ * this the order silently does nothing at all: units stand still and the player
+ * is left wondering what they did wrong.
+ *
+ * Resolved once, when the order is given, rather than re-guessed every tick.
+ */
+export function snapGoalToReachable(grid: TileGrid, x: number, y: number): { x: number; y: number } {
+  const clamped = clampGoalToMap(grid, x, y);
+  const tileX = toTileIndex(clamped.x);
+  const tileY = toTileIndex(clamped.y);
+
+  if (isPassable(grid, tileX, tileY)) return clamped;
+
+  for (let radius = 1; radius <= SNAP_SEARCH_TILES; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        if (!isPassable(grid, tileX + dx, tileY + dy)) continue;
+        return { x: tileCenter(tileX + dx), y: tileCenter(tileY + dy) };
+      }
+    }
+  }
+
+  return clamped;
 }

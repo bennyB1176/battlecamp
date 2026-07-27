@@ -21,10 +21,11 @@ import { getEntity } from "./entities.js";
 import type { BuildingTypeId } from "../content/buildings.js";
 import type { UnitTypeId } from "../content/units.js";
 import { cancelLastQueued, queueUnit, setRallyPoint } from "./production.js";
+import { assignAttackMove, assignAttackTarget, clearCombatOrders } from "./combat.js";
 import { assignBuildJob, placeBuildingAt } from "./construction.js";
 import { assignGatherJob, isWorker } from "./economy.js";
 import { isInside } from "./grid.js";
-import { clampGoalToMap } from "./movement.js";
+import { clampGoalToMap, snapGoalToReachable } from "./movement.js";
 
 /**
  * A player-visible marker dropped by tapping the map. It exists so M0 has a
@@ -106,9 +107,28 @@ export interface RallyCommand {
   readonly targetY: number;
 }
 
+/** Order units to attack a specific enemy. */
+export interface AttackCommand {
+  readonly type: "attack";
+  readonly playerId: PlayerId;
+  readonly entityIds: readonly EntityId[];
+  readonly targetId: EntityId;
+}
+
+/** Advance on a point, engaging whatever is met on the way. */
+export interface AttackMoveCommand {
+  readonly type: "attack-move";
+  readonly playerId: PlayerId;
+  readonly entityIds: readonly EntityId[];
+  readonly targetX: number;
+  readonly targetY: number;
+}
+
 export type Command =
   | PingCommand
   | MoveCommand
+  | AttackCommand
+  | AttackMoveCommand
   | GatherCommand
   | BuildCommand
   | AssistCommand
@@ -132,7 +152,7 @@ export function applyCommand(world: World, command: Command): void {
       return;
     }
     case "move": {
-      const target = clampGoalToMap(world.grid, command.targetX, command.targetY);
+      const target = snapGoalToReachable(world.grid, command.targetX, command.targetY);
 
       for (const entityId of command.entityIds) {
         const entity = getEntity(world.entities, entityId);
@@ -145,9 +165,29 @@ export function applyCommand(world: World, command: Command): void {
 
         entity.goalX = target.x;
         entity.goalY = target.y;
+        // A move order means "go there", not "go there and pick fights on the
+        // way" — so it cancels any standing attack orders.
+        clearCombatOrders(entity);
         // A fresh order earns a fresh chance to make progress — otherwise a
         // unit that gave up once would give up again almost immediately.
         entity.blockedTicks = 0;
+      }
+      return;
+    }
+    case "attack": {
+      for (const entityId of command.entityIds) {
+        const entity = getEntity(world.entities, entityId);
+        if (!entity || entity.owner !== command.playerId) continue;
+        assignAttackTarget(world, entity, command.targetId);
+      }
+      return;
+    }
+    case "attack-move": {
+      const target = snapGoalToReachable(world.grid, command.targetX, command.targetY);
+      for (const entityId of command.entityIds) {
+        const entity = getEntity(world.entities, entityId);
+        if (!entity || entity.owner !== command.playerId) continue;
+        assignAttackMove(entity, target.x, target.y);
       }
       return;
     }
