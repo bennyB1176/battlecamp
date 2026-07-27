@@ -6,8 +6,9 @@ Handy spielbar, Strategie vor Fingerfertigkeit.
 
 **▶ Spielen: https://bennyb1176.github.io/battlecamp/** — läuft im Browser, für Touch gebaut.
 
-> Status: **M3** — es wird gekämpft. Kaserne, fünf Einheitentypen mit Konter-Dreieck,
-> Verteidigungstürme, Siegbedingung. Echte Bot-Gegner kommen in M4.
+> Status: **M4** — es gibt echte Gegner. Drei Schwierigkeitsgrade, die sich messbar
+> unterscheiden, und ein Headless-Match-Runner, der ganze Partien ohne Fenster
+> durchrechnet: `npm run match -- --seeds 8 --bots leicht,schwer`.
 
 ## Schnellstart
 
@@ -23,6 +24,7 @@ npm run dev -- --host   # dann vom Handy im gleichen WLAN öffnen
 | `npm test` | Vitest, inklusive Determinismus- und Abnahme-Suite |
 | `npm run build` | Typecheck + Produktions-Build nach `dist/` |
 | `npm run build:single` | Alles in eine Datei: `dist-single/battlecamp.html` |
+| `npm run match` | Headless-Partien für Balance und Stabilität, z.B. `-- --seeds 8 --bots leicht,schwer` |
 | `npm run scan:secrets` | gitleaks über Arbeitskopie und Historie |
 | `npm run hooks:install` | Pre-commit-Hook aktivieren (optional) |
 
@@ -144,6 +146,10 @@ Dazu zwei Regeln, die dem Ganzen Form geben:
 - **Gebaut wird nur in Reichweite fertiger eigener Gebäude.** Das macht eine Basis zu einem
   zusammenhängenden, verteidigbaren Gebilde statt zu verstreuten Hütten. Nur *fertige* Gebäude zählen
   — sonst kettet man unfertige Hüllen über die Karte und umgeht die Regel.
+- **Ein Gebäude darf die Karte nicht zerschneiden.** Ein Bauplatz, der die letzte Verbindung
+  zwischen zwei Hälften der Karte schließen würde, wird abgelehnt. Ob man einen Engpass zumauern
+  *dürfen* sollte, ist eine offene Designfrage; eine Partie, die niemand mehr gewinnen kann, ist
+  keine.
 
 ## Sicherheit
 
@@ -204,7 +210,7 @@ rotationssymmetrischen Startpositionen.
 | **M1** | Einheiten & Bewegung | ✅ 100 Einheiten laufen flüssig zum Ziel, ohne sich zu verkeilen |
 | **M2** | Wirtschaft & Bau | ✅ Aus einem HQ lässt sich eine funktionierende Basis hochziehen |
 | **M3** | Produktion & Kampf | ✅ Ein komplettes Match gegen einen Dummy-Gegner ist gewinnbar |
-| M4 | Echte Bots | Bot vs. Bot läuft 20 Minuten stabil, Mensch verliert gegen „Schwer" |
+| **M4** | Echte Bots | ✅ Bot vs. Bot läuft 20 Minuten stabil und entscheidet sich, Schwierigkeitsgrade unterscheiden sich messbar |
 | M5 | Ketten, Nahrung, Energie | Erster Balance-Pass über Massen-Headless-Matches |
 | M6 | Fog of War | Aufklärung zählt, Bots respektieren den Nebel |
 | M7 | Völker 2 & 3 | Klan und Brut spielbar |

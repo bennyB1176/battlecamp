@@ -21,7 +21,9 @@ import { isPassable } from "../src/sim/grid.js";
 import { computeFlowField, isReachable } from "../src/sim/pathing.js";
 import { createWorld, type World } from "../src/sim/world.js";
 
-const SEEDS = [1, 7, 42, 20260727, 31337];
+// Seeds 1 to 8 are the ones the headless match runner uses, so a map that
+// cannot be played shows up here rather than as a nil-all twenty minutes later.
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 42, 20260727, 31337];
 
 function headquartersOf(world: World, playerId: number): Entity | undefined {
   return world.entities.list.find(
@@ -32,6 +34,11 @@ function headquartersOf(world: World, playerId: number): Entity | undefined {
 
 function unitsOf(world: World, playerId: number): Entity[] {
   return world.entities.list.filter((entity) => isUnit(entity) && entity.owner === playerId);
+}
+
+/** The tile a unit is standing on — always walkable, unlike a building's centre. */
+function standsOn(world: World, unit: Entity): { x: number; y: number } {
+  return { x: Math.floor(toTiles(unit.x)), y: Math.floor(toTiles(unit.y)) };
 }
 
 describe("two-player starts", () => {
@@ -76,37 +83,61 @@ describe("two-player starts", () => {
 
   it.each(SEEDS)("lets the two sides actually reach each other on seed %i", (seed) => {
     // A match where the armies cannot meet is not a match. This is the one
-    // property a generated map can quietly break.
+    // property a generated map can quietly break, and it broke: two twenty
+    // minute bot matches out of eight ended nil-all because one base sat on a
+    // six-by-four island that nothing could ever walk to.
+    //
+    // Measured between the tiles the *units* start on, deliberately. An earlier
+    // version of this test probed outward from each base for any walkable tile,
+    // which happily found mainland grass diagonally across a corner of water —
+    // ground beside the base that nobody standing at the base can get to. It
+    // passed on every marooned seed.
     const world = createWorld({ seed, width: 64, height: 64 });
-    const a = headquartersOf(world, 0)!;
-    const b = headquartersOf(world, 1)!;
-
-    // Probe from walkable ground beside each base — the building's own tiles
-    // are blocked, and a flow field aimed at blocked ground is unreachable
-    // everywhere, which would make this test pass or fail for the wrong reason.
-    const beside = (entity: Entity): { x: number; y: number } => {
-      const origin = buildingOrigin(entity);
-      for (let radius = 1; radius < 10; radius++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          for (let dx = -radius; dx <= radius; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-            const x = origin.tileX + dx;
-            const y = origin.tileY + dy;
-            if (isPassable(world.grid, x, y)) return { x, y };
-          }
-        }
-      }
-      throw new Error("no walkable ground beside the base");
-    };
-
-    const from = beside(a);
-    const to = beside(b);
+    const from = standsOn(world, unitsOf(world, 0)[0]!);
+    const to = standsOn(world, unitsOf(world, 1)[0]!);
     const field = computeFlowField(world.grid, to.x, to.y);
 
     expect(
       isReachable(field, from.x, from.y),
       `seed ${seed}: the two bases are on separate land masses`,
     ).toBe(true);
+  });
+
+  it.each(SEEDS)("starts every unit where it can reach its own base on seed %i", (seed) => {
+    const world = createWorld({ seed, width: 64, height: 64 });
+
+    for (const playerId of [0, 1]) {
+      const anchor = standsOn(world, unitsOf(world, playerId)[0]!);
+      const field = computeFlowField(world.grid, anchor.x, anchor.y);
+
+      for (const unit of unitsOf(world, playerId)) {
+        const tile = standsOn(world, unit);
+        expect(
+          isReachable(field, tile.x, tile.y),
+          `seed ${seed}: player ${playerId} has a unit cut off from its own opening`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it.each(SEEDS)("opens with room to grow into on seed %i", (seed) => {
+    // A start hemmed into a pocket is a loss dealt out by the map generator: no
+    // deposits to fall back on, and nowhere to put the third building.
+    const world = createWorld({ seed, width: 64, height: 64 });
+
+    for (const playerId of [0, 1]) {
+      const anchor = standsOn(world, unitsOf(world, playerId)[0]!);
+      const field = computeFlowField(world.grid, anchor.x, anchor.y);
+
+      let ground = 0;
+      for (let y = 0; y < world.grid.height; y++) {
+        for (let x = 0; x < world.grid.width; x++) {
+          if (isReachable(field, x, y)) ground++;
+        }
+      }
+
+      expect(ground, `seed ${seed}: player ${playerId} opens in a pocket`).toBeGreaterThan(400);
+    }
   });
 
   it.each(SEEDS)("puts resources within reach of both starts on seed %i", (seed) => {

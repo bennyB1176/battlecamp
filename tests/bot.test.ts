@@ -19,7 +19,7 @@ import { BuildingType } from "../src/content/buildings.js";
 import { UnitType } from "../src/content/units.js";
 import { createBot, Difficulty, PROFILES, updateBot } from "../src/ai/bot.js";
 import { placeBuildingAt } from "../src/sim/construction.js";
-import { addEntity, isBuilding, isUnit, type Entity } from "../src/sim/entities.js";
+import { addEntity, isBuilding, isUnit, removeEntity, type Entity } from "../src/sim/entities.js";
 import { fromTiles } from "../src/sim/fixed.js";
 import { createGrid, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource, stockDeposits } from "../src/sim/resources.js";
@@ -206,6 +206,76 @@ describe("infrastructure layer", () => {
   });
 });
 
+describe("ground it cannot walk to", () => {
+  /**
+   * The same base, but with a river down its western side and the near woods
+   * felled — so the obvious nearby answers are all on the far bank.
+   *
+   * This is not a contrived map. A generated one produced exactly this shape,
+   * and the bot spent fifteen minutes with thirteen workers standing still and
+   * a barracks frozen at a fifth built, because "legal" and "walkable" are not
+   * the same question and only the first one was being asked.
+   */
+  function riverWorld(): World {
+    const world = botWorld();
+    for (let tileY = 0; tileY < world.grid.height; tileY++) {
+      setTerrain(world.grid, 24, tileY, Terrain.Water);
+    }
+    // Woods on the far bank, close enough to look like the nearest choice.
+    for (let i = 0; i < 6; i++) setTerrain(world.grid, 22, 26 + i, Terrain.Forest);
+    stockDeposits(world);
+    return world;
+  }
+
+  /** How much is still in the ground — the honest measure of "did it mine?". */
+  function remaining(world: World): number {
+    let total = 0;
+    for (const amount of world.deposits) total += amount;
+    return total;
+  }
+
+  it("sends its workers to seams on their own side of the water", () => {
+    const world = riverWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+
+    play(world, bot, 200);
+
+    const jobs = owned(world, BOT_PLAYER)
+      .filter((entity) => entity.job !== null)
+      .map((entity) => entity.job!);
+
+    expect(jobs.length, "no worker picked up a job at all").toBeGreaterThan(0);
+    for (const job of jobs) {
+      expect(job.nodeX, `worker sent across the river to ${job.nodeX},${job.nodeY}`).toBeGreaterThan(24);
+    }
+  });
+
+  it("keeps mining with a river beside the base", () => {
+    const world = riverWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+    const before = remaining(world);
+
+    play(world, bot, 900);
+
+    expect(remaining(world), "nothing came out of the ground in a minute and a half").toBeLessThan(
+      before,
+    );
+  });
+
+  it("puts its barracks somewhere the builders can actually get to", () => {
+    const world = riverWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+
+    play(world, bot, 2000);
+
+    const barracks = owned(world, BOT_PLAYER).find(
+      (entity) => isBuilding(entity) && entity.typeId === BuildingType.Barracks,
+    );
+    expect(barracks, "the bot never built a barracks").toBeDefined();
+    expect(barracks!.construction, "the barracks never finished — a stuck site").toBeNull();
+  });
+});
+
 describe("military layer", () => {
   it("builds an army once it has a barracks", () => {
     const world = botWorld();
@@ -250,6 +320,117 @@ describe("military layer", () => {
     play(world, bot, 30);
     const marching = owned(world, BOT_PLAYER).filter((entity) => entity.attackMoveX !== null);
     expect(marching.length).toBeGreaterThan(0);
+  });
+
+  it("builds what it can pay for rather than nothing at all", () => {
+    // The counter-picking bot used to name its ideal unit and then discover it
+    // could not afford it — every think, for the rest of the match. In headless
+    // runs the "hard" bot finished twenty minutes with four soldiers and ten
+    // thousand banked wood, because the answer to what it was fighting happened
+    // to be the one unit needing stone, and it had no stone.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
+    placeBuildingAt(world, BOT_PLAYER, BuildingType.Barracks, 30, 27, {
+      free: true,
+      finished: true,
+      ignoreRadius: true,
+    });
+
+    world.players[BOT_PLAYER]!.resources[Resource.Wood] = 4000;
+    world.players[BOT_PLAYER]!.resources[Resource.Ore] = 4000;
+    // No stone, and none in the ground on this map — so the armoured answer is
+    // permanently out of reach and it has to settle for one it can pay for.
+    world.players[BOT_PLAYER]!.resources[Resource.Stone] = 0;
+
+    for (let i = 0; i < 8; i++) {
+      addEntity(world.entities, {
+        typeId: UnitType.Soldier,
+        owner: 0,
+        x: fromTiles(8 + i),
+        y: fromTiles(8),
+      });
+    }
+
+    play(world, bot, 600);
+
+    const fighters = owned(world, BOT_PLAYER).filter(
+      (entity) => isUnit(entity) && entity.typeId !== UnitType.Worker,
+    );
+    expect(fighters.length, "the bot priced itself out of having an army").toBeGreaterThan(0);
+  });
+
+  it("finishes off what it marched on", () => {
+    // Arriving is not winning. Attack-move clears itself once a unit reaches the
+    // destination, and an idle unit only shoots what is already in weapon range
+    // — so an army that walked to the enemy base and stopped two tiles short
+    // stood there for the rest of the match. Seventy soldiers, one intact
+    // headquarters, twenty minutes, nil-all.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Normal, 1);
+
+    const prey = placeBuildingAt(world, 0, BuildingType.Depot, 10, 20, {
+      free: true,
+      finished: true,
+      ignoreRadius: true,
+    })!;
+
+    for (let i = 0; i < PROFILES[Difficulty.Normal].attackAt + 4; i++) {
+      addEntity(world.entities, {
+        typeId: UnitType.Soldier,
+        owner: BOT_PLAYER,
+        x: fromTiles(24 + (i % 4)),
+        y: fromTiles(24 + Math.floor(i / 4)),
+      });
+    }
+
+    const before = prey.hp;
+    play(world, bot, 2500);
+
+    expect(prey.hp, "the army reached the target and then ignored it").toBeLessThan(before);
+  });
+
+  it("picks a new target once the old one is rubble", () => {
+    // Where matches went to die: the army marched on the enemy headquarters,
+    // levelled it, and then stood on the ruins for the remaining twelve minutes
+    // while a barracks three tiles away kept producing. Committing to an attack
+    // has to mean committing to the *enemy*, not to a set of coordinates.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Normal, 1);
+
+    // A second enemy building, so there is still something to go for.
+    placeBuildingAt(world, 0, BuildingType.Depot, 14, 14, {
+      free: true,
+      finished: true,
+      ignoreRadius: true,
+    });
+    const doomed = owned(world, 0).find(
+      (entity) => isBuilding(entity) && entity.typeId === BuildingType.Headquarters,
+    )!;
+
+    for (let i = 0; i < PROFILES[Difficulty.Normal].attackAt; i++) {
+      addEntity(world.entities, {
+        typeId: UnitType.Soldier,
+        owner: BOT_PLAYER,
+        x: fromTiles(30 + (i % 3)),
+        y: fromTiles(33 + Math.floor(i / 3)),
+      });
+    }
+
+    play(world, bot, 30);
+    const first = owned(world, BOT_PLAYER).find((entity) => entity.attackMoveX !== null);
+    expect(first, "the army never set off").toBeDefined();
+    const firstTarget = first!.attackMoveX!;
+
+    // The target falls; the enemy headquarters is still standing elsewhere.
+    removeEntity(world.entities, doomed.id);
+    play(world, bot, 60);
+
+    const marching = owned(world, BOT_PLAYER).filter((entity) => entity.attackMoveX !== null);
+    expect(marching.length, "the army stopped fighting altogether").toBeGreaterThan(0);
+    expect(
+      marching.some((entity) => entity.attackMoveX !== firstTarget),
+      "the army is still marching on a target that no longer exists",
+    ).toBe(true);
   });
 
   it("comes home when its base is attacked", () => {

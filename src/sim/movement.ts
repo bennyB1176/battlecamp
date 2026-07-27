@@ -17,7 +17,7 @@
 
 import { isUnit, unitDefOf, type Entity } from "./entities.js";
 import { clamp, dist, distSq, isqrt, ONE, tileCenter, toTileIndex } from "./fixed.js";
-import { isPassable, type TileGrid } from "./grid.js";
+import { findRegionFrom, isPassable, type TileGrid } from "./grid.js";
 import { flowDirectionAt, getFlowField, isReachable, type FlowFieldCache } from "./pathing.js";
 import { queryRadius, rebuildSpatialHash, type SpatialHash } from "./spatial.js";
 
@@ -286,22 +286,47 @@ const SNAP_SEARCH_TILES = 10;
  *
  * Resolved once, when the order is given, rather than re-guessed every tick.
  */
-export function snapGoalToReachable(grid: TileGrid, x: number, y: number): { x: number; y: number } {
+export function snapGoalToReachable(
+  grid: TileGrid,
+  x: number,
+  y: number,
+  /**
+   * Where the order is being given *from*. Supplying it upgrades the search
+   * from "somewhere walkable" to "somewhere these units can walk to" — the
+   * difference between an order that works and one that silently does nothing,
+   * when the open ground beside the destination is a pocket on the far side of
+   * a wall. An army once spent twelve minutes aimed at a one-tile nook next to
+   * the enemy headquarters because of exactly this.
+   */
+  from?: { tileX: number; tileY: number },
+): { x: number; y: number } {
   const clamped = clampGoalToMap(grid, x, y);
   const tileX = toTileIndex(clamped.x);
   const tileY = toTileIndex(clamped.y);
 
-  if (isPassable(grid, tileX, tileY)) return clamped;
+  const region = from ? findRegionFrom(grid, from.tileX, from.tileY) : null;
+  const usable = (candidateX: number, candidateY: number): boolean => {
+    if (!isPassable(grid, candidateX, candidateY)) return false;
+    if (!region) return true;
+    return region[candidateY * grid.width + candidateX] === 1;
+  };
 
-  for (let radius = 1; radius <= SNAP_SEARCH_TILES; radius++) {
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-        if (!isPassable(grid, tileX + dx, tileY + dy)) continue;
-        return { x: tileCenter(tileX + dx), y: tileCenter(tileY + dy) };
+  if (usable(tileX, tileY)) return clamped;
+
+  const spiral = (accept: (x: number, y: number) => boolean): { x: number; y: number } | null => {
+    for (let radius = 1; radius <= SNAP_SEARCH_TILES; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+          if (!accept(tileX + dx, tileY + dy)) continue;
+          return { x: tileCenter(tileX + dx), y: tileCenter(tileY + dy) };
+        }
       }
     }
-  }
+    return null;
+  };
 
-  return clamped;
+  // Reachable ground first; failing that, any walkable ground. Refusing the
+  // order outright would be worse than sending them as close as they can get.
+  return spiral(usable) ?? spiral((cx, cy) => isPassable(grid, cx, cy)) ?? clamped;
 }

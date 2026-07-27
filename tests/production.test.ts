@@ -13,7 +13,7 @@ import { UnitType, unitDef, type UnitTypeId } from "../src/content/units.js";
 import { placeBuildingAt } from "../src/sim/construction.js";
 import { isUnit, type Entity } from "../src/sim/entities.js";
 import { toTiles } from "../src/sim/fixed.js";
-import { createGrid, Terrain } from "../src/sim/grid.js";
+import { createGrid, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource } from "../src/sim/resources.js";
 import { createWorld, tickWorld, type World } from "../src/sim/world.js";
 
@@ -159,6 +159,38 @@ describe("training", () => {
 
     const produced = world.entities.list.find((entity) => isUnit(entity))!;
     expect(produced.goalX).toBeNull();
+  });
+});
+
+describe("where a unit comes out", () => {
+  it("does not drop a unit into a dead-end it can never leave", () => {
+    // A one-tile nook beside the headquarters is walkable, so the old spawn
+    // search took it — and the unit spent the rest of the match in a hole one
+    // tile wide. Worse than useless: the match cannot be decided, because the
+    // enemy cannot reach it to kill it either.
+    const { world, hq } = baseWorld();
+
+    // Seal the tile at (9,9) behind rock on all four sides — the headquarters
+    // occupies (10,10) to (12,12), so its diagonal offers no way out either.
+    // It is walkable, and it is the very first tile the spawn search looks at.
+    for (const [x, y] of [
+      [9, 8],
+      [8, 9],
+      [9, 10],
+      [10, 9],
+    ] as const) {
+      setTerrain(world.grid, x, y, Terrain.Rock);
+    }
+
+    train(world, hq);
+    for (let i = 0; i < 200; i++) tickWorld(world);
+
+    const spawned = world.entities.list.find((entity) => isUnit(entity));
+    expect(spawned, "nothing was produced at all").toBeDefined();
+    expect(
+      { x: Math.floor(toTiles(spawned!.x)), y: Math.floor(toTiles(spawned!.y)) },
+      "the new unit was born in a sealed pocket",
+    ).not.toEqual({ x: 9, y: 9 });
   });
 });
 

@@ -11,7 +11,7 @@
 import { unitDef, type UnitTypeId } from "../content/units.js";
 import { buildingDefOf, addEntity, buildingTiles, isComplete, type Entity } from "./entities.js";
 import { tileCenter } from "./fixed.js";
-import { isPassable } from "./grid.js";
+import { isPassable, regionAtLeast } from "./grid.js";
 import { canAfford, credit, debit, RESOURCE_KINDS } from "./resources.js";
 import type { World } from "./world.js";
 
@@ -91,10 +91,21 @@ export function updateProduction(world: World): void {
 }
 
 /**
- * A walkable tile just outside the building.
+ * How much open ground a spawn tile must connect to.
+ *
+ * Enough to rule out a nook, small enough that a genuinely cramped but usable
+ * corner of the map still works.
+ */
+const SPAWN_ROOM_TILES = 16;
+
+/**
+ * A walkable tile just outside the building, with somewhere to go from it.
  *
  * Spawning on the footprint would put the unit inside blocked ground, where it
- * cannot path out of its own home.
+ * cannot path out of its own home. Walkable alone is not enough either: a
+ * one-tile nook beside the building passes that test and is a life sentence.
+ * The unit is stuck there, and so is the match — the enemy cannot reach it to
+ * kill it, so a game that is over in every meaningful sense never ends.
  */
 function spawnPoint(world: World, building: Entity): { x: number; y: number } | null {
   const tiles = buildingTiles(building);
@@ -111,7 +122,10 @@ function spawnPoint(world: World, building: Entity): { x: number; y: number } | 
   }
 
   // Widen the ring until something is free, so a building hemmed in on one side
-  // still produces.
+  // still produces. A tile that is merely free is remembered as a last resort:
+  // a unit in a nook is bad, but refusing to produce at all is worse.
+  let cramped: { x: number; y: number } | null = null;
+
   for (let ring = 1; ring <= 4; ring++) {
     for (let tileY = minTileY - ring; tileY <= maxTileY + ring; tileY++) {
       for (let tileX = minTileX - ring; tileX <= maxTileX + ring; tileX++) {
@@ -122,12 +136,15 @@ function spawnPoint(world: World, building: Entity): { x: number; y: number } | 
           tileY === maxTileY + ring;
         if (!onRing) continue;
         if (!isPassable(world.grid, tileX, tileY)) continue;
-        return { x: tileCenter(tileX), y: tileCenter(tileY) };
+
+        const spot = { x: tileCenter(tileX), y: tileCenter(tileY) };
+        if (regionAtLeast(world.grid, tileX, tileY, SPAWN_ROOM_TILES)) return spot;
+        cramped ??= spot;
       }
     }
   }
 
-  return null;
+  return cramped;
 }
 
 /** Where units produced here should head once trained. */

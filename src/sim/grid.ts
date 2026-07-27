@@ -142,12 +142,7 @@ export function findLargestRegion(grid: TileGrid): Uint8Array {
       const x = index % grid.width;
       const y = (index - x) / grid.width;
 
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
+      for (const [dx, dy] of ORTHOGONAL) {
         const nx = x + dx;
         const ny = y + dy;
         if (!isInside(grid, nx, ny)) continue;
@@ -174,6 +169,124 @@ export function findLargestRegion(grid: TileGrid): Uint8Array {
   }
   return mask;
 }
+
+/**
+ * Every tile walkable from one starting tile, as a mask.
+ *
+ * The companion to `findLargestRegion`: that one answers "which land mass is
+ * the map", this one answers "which land mass is *this*". Placing a base blocks
+ * the ground under it and can cut a map in two, so the region a later start has
+ * to touch is the one measured from the first start — not the biggest one on a
+ * map that no longer exists.
+ */
+export function findRegionFrom(
+  grid: TileGrid,
+  startX: number,
+  startY: number,
+  /** A square treated as solid, for asking "what if I built here?". */
+  pretendBlocked?: { tileX: number; tileY: number; size: number },
+): Uint8Array {
+  const solid = (x: number, y: number): boolean => {
+    if (
+      pretendBlocked &&
+      x >= pretendBlocked.tileX &&
+      x < pretendBlocked.tileX + pretendBlocked.size &&
+      y >= pretendBlocked.tileY &&
+      y < pretendBlocked.tileY + pretendBlocked.size
+    ) {
+      return true;
+    }
+    return !isPassable(grid, x, y);
+  };
+
+  const mask = new Uint8Array(grid.width * grid.height);
+  if (solid(startX, startY)) return mask;
+
+  const queue = new Int32Array(grid.width * grid.height);
+  let head = 0;
+  let tail = 0;
+
+  const start = startY * grid.width + startX;
+  mask[start] = 1;
+  queue[tail++] = start;
+
+  while (head < tail) {
+    const index = queue[head++]!;
+    const x = index % grid.width;
+    const y = (index - x) / grid.width;
+
+    for (const [dx, dy] of ORTHOGONAL) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!isInside(grid, nx, ny)) continue;
+
+      const neighbour = ny * grid.width + nx;
+      if (mask[neighbour] === 1) continue;
+      if (solid(nx, ny)) continue;
+
+      mask[neighbour] = 1;
+      queue[tail++] = neighbour;
+    }
+  }
+
+  return mask;
+}
+
+/**
+ * Does at least `minTiles` of walkable ground connect to this tile?
+ *
+ * The cheap version of `findRegionFrom` for the only question most callers ask:
+ * "is there room here, or is this a nook?". Stops as soon as the answer is yes,
+ * so the common case walks a handful of tiles rather than the whole map.
+ */
+export function regionAtLeast(
+  grid: TileGrid,
+  startX: number,
+  startY: number,
+  minTiles: number,
+): boolean {
+  if (!isPassable(grid, startX, startY)) return false;
+  if (minTiles <= 1) return true;
+
+  const seen = new Set<number>();
+  const queue: number[] = [startY * grid.width + startX];
+  seen.add(queue[0]!);
+
+  for (let head = 0; head < queue.length; head++) {
+    if (seen.size >= minTiles) return true;
+
+    const index = queue[head]!;
+    const x = index % grid.width;
+    const y = (index - x) / grid.width;
+
+    for (const [dx, dy] of ORTHOGONAL) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!isInside(grid, nx, ny)) continue;
+      if (!isPassable(grid, nx, ny)) continue;
+
+      const neighbour = ny * grid.width + nx;
+      if (seen.has(neighbour)) continue;
+      seen.add(neighbour);
+      queue.push(neighbour);
+    }
+  }
+
+  return seen.size >= minTiles;
+}
+
+/**
+ * Four-connected, not eight. Two tiles touching only at a corner are *not*
+ * neighbours here, and must not be: movement refuses a diagonal step unless
+ * both tiles beside it are open, so a corner touch across water is a join that
+ * pathfinding will never honour.
+ */
+const ORTHOGONAL = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
 
 /**
  * Can a building of the given footprint be placed with its top-left corner here?

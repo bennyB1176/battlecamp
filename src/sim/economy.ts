@@ -25,6 +25,7 @@ import {
   type WorkerJob,
 } from "./entities.js";
 import { dist, distSq, fromTiles, tileCenter, toTileIndex } from "./fixed.js";
+import { computeFlowField, getFlowField, isReachable, type FlowField } from "./pathing.js";
 import { credit, harvestFrom, resourceOfTerrain } from "./resources.js";
 import { isPassable, terrainAt } from "./grid.js";
 import type { World } from "./world.js";
@@ -69,11 +70,25 @@ function harvest(world: World, worker: Entity, job: WorkerJob): void {
 
   // The tile may have been stripped by someone else while we walked.
   if (resourceOfTerrain(terrainAt(world.grid, job.nodeX, job.nodeY)) === null) {
-    if (!reseek(world, worker, job)) finishJob(worker, job);
+    if (!reseek(world, worker, job, job.nodeX, job.nodeY)) finishJob(worker, job);
     return;
   }
 
   if (dist(worker.x, worker.y, nodeX, nodeY) > INTERACT_RANGE) {
+    // Nothing on this side of the map connects to that seam. Left alone this is
+    // a *silent* deadlock rather than a slow worker: movement refuses a goal it
+    // cannot route to and clears it, this function sees no goal and sets the
+    // same one again, and the worker stands pinned until the match ends. Cheap
+    // to check, because the field is the very one movement is about to use.
+    if (!canReach(world, worker, job.nodeX, job.nodeY)) {
+      // Search around the *worker*, not the seam — everything near the seam is
+      // just as cut off, and walking the search sideways finds more of it.
+      const fromX = toTileIndex(worker.x);
+      const fromY = toTileIndex(worker.y);
+      if (!reseek(world, worker, job, fromX, fromY)) finishJob(worker, job);
+      return;
+    }
+
     // Still on the way. Re-issuing the same goal is harmless and re-arms a
     // worker that gave up after being jostled by the crowd.
     if (worker.goalX === null) {
@@ -94,7 +109,7 @@ function harvest(world: World, worker: Entity, job: WorkerJob): void {
 
   const taken = harvestFrom(world, job.nodeX, job.nodeY, WORKER_CAPACITY - job.carried);
   if (!taken) {
-    if (!reseek(world, worker, job)) finishJob(worker, job);
+    if (!reseek(world, worker, job, job.nodeX, job.nodeY)) finishJob(worker, job);
     return;
   }
 
@@ -142,8 +157,20 @@ function deliver(world: World, worker: Entity, job: WorkerJob): void {
 
   // Back to the seam — unless it is gone, in which case look for another.
   if (resourceOfTerrain(terrainAt(world.grid, job.nodeX, job.nodeY)) === null) {
-    if (!reseek(world, worker, job)) finishJob(worker, job);
+    if (!reseek(world, worker, job, job.nodeX, job.nodeY)) finishJob(worker, job);
   }
+}
+
+/**
+ * Is there a route from where this worker stands to that tile?
+ *
+ * Uses the shared flow-field cache, so asking costs a lookup for any goal
+ * something is already walking to — and reachability is symmetric, so a field
+ * built towards the tile answers the question from any starting point.
+ */
+export function canReach(world: World, worker: Entity, tileX: number, tileY: number): boolean {
+  const field = getFlowField(world.fields, world.grid, tileX, tileY);
+  return isReachable(field, toTileIndex(worker.x), toTileIndex(worker.y));
 }
 
 /**
@@ -236,16 +263,34 @@ export function nearestDropOff(world: World, worker: Entity): Entity | null {
 }
 
 /**
- * Find another deposit of the same resource nearby.
+ * Find another deposit of the same resource near a given tile.
  *
  * Without this, felling one tree sends the whole workforce idle and the player
  * has to re-issue orders constantly — busywork that tests nothing but patience.
  * The search is a bounded spiral so it stays cheap and deterministic.
+ *
+ * The origin is a parameter because the two reasons to re-seek want different
+ * ones: an exhausted seam means "more of the same, nearby", while an
+ * unreachable seam means "something I can actually walk to from here".
  */
-function reseek(world: World, worker: Entity, job: WorkerJob): boolean {
+function reseek(
+  world: World,
+  worker: Entity,
+  job: WorkerJob,
+  fromX: number,
+  fromY: number,
+): boolean {
   const wanted = job.carrying;
-  const fromX = job.nodeX;
-  const fromY = job.nodeY;
+
+  // One sweep outward from the worker answers "can I get there?" for every
+  // candidate at once. Asking the shared cache per candidate would evict the
+  // fields the rest of the army is walking on — that mistake once cost a
+  // hundredfold in tick time.
+  let routes: FlowField | null = null;
+  const reachable = (tileX: number, tileY: number): boolean => {
+    routes ??= computeFlowField(world.grid, toTileIndex(worker.x), toTileIndex(worker.y));
+    return isReachable(routes, tileX, tileY);
+  };
 
   for (let radius = 1; radius <= RESEEK_RADIUS_TILES; radius++) {
     for (let dy = -radius; dy <= radius; dy++) {
@@ -259,6 +304,8 @@ function reseek(world: World, worker: Entity, job: WorkerJob): boolean {
         // Prefer the same resource, so a lumberjack does not wander into a mine
         // and quietly change what the player's economy produces.
         if (wanted !== null && resource !== wanted) continue;
+        // No point trading one seam we cannot reach for another.
+        if (!reachable(tileX, tileY)) continue;
 
         job.nodeX = tileX;
         job.nodeY = tileY;
