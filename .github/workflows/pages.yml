@@ -2,19 +2,23 @@ name: Deploy to GitHub Pages
 
 # Publishes the playable build so it can be opened on a phone.
 #
-# One manual step is required once, in the repository settings:
-#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
-# Without it this workflow builds fine and then fails to deploy.
+# Deploys from main only. GitHub creates the `github-pages` environment with a
+# deployment branch rule limited to the default branch, so a run from any other
+# branch builds and tests happily and is then rejected at the deploy gate — a
+# red cross on every push that says nothing about the code. Triggering only on
+# main keeps the signal honest.
 #
-# The development branch deploys too, not just main: the whole point is to test
-# work in progress on a real device. GitHub Pages serves a single live site, so
-# whichever branch pushed last is what the URL shows.
+# To preview work in progress on a device without merging, use
+# `npm run dev -- --host` on the same network, or `npm run build:single` for a
+# file you can open anywhere.
+#
+# Requires once, in the repository settings:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
 
 on:
   push:
     branches:
       - main
-      - "claude/**"
   workflow_dispatch:
 
 permissions:

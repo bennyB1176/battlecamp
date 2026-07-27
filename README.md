@@ -53,14 +53,16 @@ Drei Wege, je nachdem was du gerade brauchst:
 **Im gleichen WLAN** — `npm run dev -- --host`, dann die angezeigte Netzwerk-Adresse am Telefon
 öffnen. Hot Reload inklusive: speichern am Rechner, das Handy lädt neu.
 
-**GitHub Pages** — jeder Push auf `main` oder einen `claude/**`-Branch baut, testet und
-veröffentlicht automatisch (`.github/workflows/pages.yml`). Einmalig nötig, sonst schlägt der
-Deploy fehl:
+**GitHub Pages** — jeder Push auf `main` baut, testet und veröffentlicht automatisch
+(`.github/workflows/pages.yml`); das Spiel liegt danach unter
+`https://bennyb1176.github.io/battlecamp/`. Einmalig nötig:
 
 > Settings → Pages → Build and deployment → Source: **GitHub Actions**
 
-Danach liegt das Spiel unter `https://bennyb1176.github.io/battlecamp/`. Pages bedient eine
-einzige Live-Seite — es zeigt also immer den zuletzt gepushten Branch.
+Nur `main`, nicht jeder Branch: GitHub legt die `github-pages`-Umgebung mit einer Regel an, die
+Deploys auf den Default-Branch beschränkt. Ein Lauf von einem Feature-Branch baut und testet
+sauber und wird dann am Deploy-Tor abgewiesen — ein rotes Kreuz, das nichts über den Code aussagt.
+Für Zwischenstände auf dem Gerät sind die beiden anderen Wege da.
 
 **Eine Datei zum Weitergeben** — `npm run build:single` legt `dist-single/battlecamp.html` an:
 das komplette Spiel in ~24 kB, ohne Server lauffähig. Reicht für AirDrop, Anhang oder itch.io.
