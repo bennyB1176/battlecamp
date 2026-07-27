@@ -140,6 +140,15 @@ body {
 
 /* The swatch colour is set per element from the resource table, not here. */
 
+/* Food is the one figure on the bar that can be bad news, so it is allowed to
+   shout. Everything else stays the same weight whatever it says. */
+.res.short {
+  color: #ff9a86;
+}
+.res.short::before {
+  background: #ff5a3c;
+}
+
 /* Sits just above the control row, only while something is selected. */
 #hud-context {
   pointer-events: auto;

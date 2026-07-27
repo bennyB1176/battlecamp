@@ -38,6 +38,7 @@ import {
 import { updateMovement } from "./movement.js";
 import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from "./pathing.js";
 import { updateProduction } from "./production.js";
+import { updateFood } from "./food.js";
 import { updateRefineries } from "./refinery.js";
 import { createPlayer, Resource, stockDeposits, type Player } from "./resources.js";
 import { updateVictory } from "./victory.js";
@@ -437,6 +438,9 @@ export function tickWorld(world: World, commands: readonly Command[] = []): void
   // After production, before gathering: a batch finished this tick is in the
   // pool for the next order, not for one already paid for this tick.
   updateRefineries(world);
+  // Before combat, so a starving army goes into the fight already weakened
+  // rather than being docked afterwards for a battle it has already won.
+  updateFood(world);
   updateEconomy(world);
   updateConstruction(world);
   // Combat before movement: fighting decides where units want to be (or that

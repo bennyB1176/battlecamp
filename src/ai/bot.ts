@@ -32,6 +32,7 @@ import type { Command } from "../sim/commands.js";
 import { canPlace } from "../sim/construction.js";
 import { computeFlowField, isReachable, type FlowField } from "../sim/pathing.js";
 import { isWorker } from "../sim/economy.js";
+import { isStarving } from "../sim/food.js";
 import {
   buildingOrigin,
   getEntity,
@@ -333,6 +334,13 @@ function runInfrastructure(
     buildings.some((building) => building.typeId === typeId);
 
   const wanted: BuildingTypeId[] = [];
+  // Food first, and before the barracks: the one cost that keeps arriving is
+  // also the one a bot can ignore all match while still looking busy. Left out,
+  // this bot raised eighteen workers and an army, starved the lot, and started
+  // losing to the easy setting — which stayed small enough to feed itself by
+  // accident. Only ever one farm at a time, so being hungry cannot turn into
+  // farming instead of playing.
+  if (isStarving(world, bot.playerId)) wanted.push(BuildingType.Farm);
   if (!has(BuildingType.Barracks)) wanted.push(BuildingType.Barracks);
   if (bot.profile.buildsTowers && !has(BuildingType.Tower)) wanted.push(BuildingType.Tower);
 

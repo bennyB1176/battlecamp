@@ -50,6 +50,8 @@ export interface Hud {
   setAttackMode: (active: boolean) => void;
   /** Amounts by resource kind, in the order the resource table lists them. */
   setResources: (amounts: Readonly<Record<ResourceKind, number>>) => void;
+  /** Mouths to feed against the ceiling that feeds them. */
+  setFood: (demand: number, supply: number) => void;
   /** Replace the context panel. An empty action list hides it. */
   setContext: (title: string, actions: readonly HudAction[]) => void;
 }
@@ -84,6 +86,17 @@ export function createHud(callbacks: HudCallbacks): Hud {
     resourceBar.append(span);
     amounts.set(kind, span);
   }
+
+  // Food is not a stock, so it does not belong among the amounts: it is a
+  // ratio, and the only number on this bar that can be *bad*. It sits at the
+  // end with its own marker and turns red the moment demand passes supply —
+  // an army quietly losing health with no explanation on screen is the kind of
+  // thing that makes a game feel broken rather than hard.
+  const food = document.createElement("span");
+  food.className = "res food";
+  food.style.setProperty("--swatch", "#e6b45c");
+  food.title = "Nahrung: Bedarf / Versorgung";
+  resourceBar.append(food);
 
   const context = requireElement<HTMLDivElement>("hud-context");
   const contextTitle = requireElement<HTMLDivElement>("context-title");
@@ -145,6 +158,11 @@ export function createHud(callbacks: HudCallbacks): Hud {
         // whole bar sixty times a second for numbers that change once a second.
         if (span.textContent !== text) span.textContent = text;
       }
+    },
+    setFood: (demand, supply) => {
+      const text = `${demand}/${supply}`;
+      if (food.textContent !== text) food.textContent = text;
+      food.classList.toggle("short", demand > supply);
     },
     setContext: (title, actions) => {
       // Rebuilding the panel on every frame would kill any button mid-tap on a

@@ -23,6 +23,7 @@ import { addEntity, isBuilding, isUnit, removeEntity, type Entity } from "../src
 import { fromTiles } from "../src/sim/fixed.js";
 import { createGrid, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource, stockDeposits } from "../src/sim/resources.js";
+import { isStarving } from "../src/sim/food.js";
 import { createWorld, tickWorld, type World } from "../src/sim/world.js";
 
 const BOT_PLAYER = 1;
@@ -525,5 +526,49 @@ describe("determinism", () => {
     // generator is actually its own and not a shared one.
     const results = [1, 2, 3, 4, 5].map(run);
     expect(new Set(results).size).toBeGreaterThan(0);
+  });
+});
+
+describe("feeding its own army", () => {
+  it("builds a farm rather than letting the army waste away", () => {
+    // Food is the one cost that keeps arriving, so it is the one a bot can
+    // ignore all match and still look busy. Left alone, the hard bot raised
+    // eighteen workers and an army, starved the lot, and started losing to the
+    // easy bot — which stayed small enough to feed itself by accident.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Normal, 1);
+
+    for (let i = 0; i < 14; i++) {
+      addEntity(world.entities, {
+        typeId: UnitType.Soldier,
+        owner: BOT_PLAYER,
+        x: fromTiles(24 + (i % 4)),
+        y: fromTiles(24 + Math.floor(i / 4)),
+      });
+    }
+    expect(isStarving(world, BOT_PLAYER), "the test did not actually make it hungry").toBe(true);
+
+    play(world, bot, 2000);
+
+    expect(
+      owned(world, BOT_PLAYER).filter(
+        (entity) => isBuilding(entity) && entity.typeId === BuildingType.Farm,
+      ).length,
+      "the bot never built a farm",
+    ).toBeGreaterThan(0);
+  });
+
+  it("does not spend the whole match farming when it is well fed", () => {
+    // The other failure mode: a bot that answers every question with a farm
+    // never builds an army at all.
+    const world = botWorld();
+    const bot = createBot(BOT_PLAYER, Difficulty.Normal, 1);
+
+    play(world, bot, 2500);
+
+    const farms = owned(world, BOT_PLAYER).filter(
+      (entity) => isBuilding(entity) && entity.typeId === BuildingType.Farm,
+    ).length;
+    expect(farms, "it farmed instead of playing").toBeLessThan(4);
   });
 });
