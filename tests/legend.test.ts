@@ -17,7 +17,7 @@ import {
   formatCost,
   unitEntries,
 } from "../src/ui/legend-data.js";
-import { Resource } from "../src/sim/resources.js";
+import { Resource, RESOURCE_NAMES } from "../src/sim/resources.js";
 
 describe("unit entries", () => {
   it("lists every unit the game has, with no hand-maintained list", () => {
@@ -131,5 +131,33 @@ describe("cost formatting", () => {
 
   it("says so when something is free", () => {
     expect(formatCost({})).toBe("kostenlos");
+  });
+});
+
+describe("refineries in the legend", () => {
+  it("says what each refinery turns into what", () => {
+    // A chain the player cannot see is a chain the player cannot plan around,
+    // and this is the one mechanic in the game with no visible feedback on the
+    // map at all — the goods appear in a number at the top of the screen.
+    const sawmill = buildingEntries().find((entry) => entry.typeId === BuildingType.Sawmill)!;
+
+    expect(sawmill.refinesText, "the sawmill does not say what it makes").not.toBeNull();
+    expect(sawmill.refinesText).toContain(RESOURCE_NAMES[Resource.Wood]);
+    expect(sawmill.refinesText).toContain(RESOURCE_NAMES[Resource.Planks]);
+  });
+
+  it("leaves buildings that refine nothing without a line", () => {
+    const barracks = buildingEntries().find((entry) => entry.typeId === BuildingType.Barracks)!;
+    expect(barracks.refinesText).toBeNull();
+  });
+
+  it("derives the line from the recipe rather than from prose", () => {
+    // Retune a recipe and this rewrites itself; that is the whole reason the
+    // help lives in the game instead of in a wiki.
+    const smelter = buildingEntries().find((entry) => entry.typeId === BuildingType.Smelter)!;
+    const recipe = BUILDING_DEFS[BuildingType.Smelter].refines!;
+
+    expect(smelter.refinesText).toContain(String(recipe.inputAmount));
+    expect(smelter.refinesText).toContain(String(recipe.outputAmount));
   });
 });

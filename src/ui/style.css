@@ -129,6 +129,7 @@ body {
 
 .res::before {
   content: "";
+  background: var(--swatch);
   display: inline-block;
   width: 9px;
   height: 9px;
@@ -137,15 +138,7 @@ body {
   vertical-align: baseline;
 }
 
-.res-wood::before {
-  background: #6ba85a;
-}
-.res-stone::before {
-  background: #c9c6bd;
-}
-.res-ore::before {
-  background: #d69a4c;
-}
+/* The swatch colour is set per element from the resource table, not here. */
 
 /* Sits just above the control row, only while something is selected. */
 #hud-context {

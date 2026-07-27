@@ -170,7 +170,10 @@ export const UNIT_DEFS: Readonly<Record<UnitTypeId, UnitDef>> = {
     0.42,
     3.6,
     7,
-    { [Resource.Wood]: 60, [Resource.Stone]: 30, [Resource.Ore]: 90 },
+    // Steel, not ore: the heaviest thing in the game is the one that has to be
+    // planned for. A player who never built a smelter simply cannot field it,
+    // however much raw ore they are sitting on.
+    { [Resource.Wood]: 60, [Resource.Stone]: 30, [Resource.Steel]: 40 },
     26,
     UnitShape.Hull,
     Armor.Heavy,

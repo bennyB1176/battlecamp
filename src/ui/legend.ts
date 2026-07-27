@@ -249,6 +249,7 @@ function buildContent(): DocumentFragment {
       ["Bauradius", `${entry.buildRadius} Kacheln`],
     ];
     if (entry.acceptsDeliveries) rows.push(["Abgabe", "Arbeiter liefern hier ab"]);
+    if (entry.refinesText) rows.push(["Veredelt", entry.refinesText]);
     if (entry.trains.length > 0) rows.push(["Bildet aus", entry.trains.join(", ")]);
     if (entry.weaponText) rows.push(["Waffe", entry.weaponText]);
 

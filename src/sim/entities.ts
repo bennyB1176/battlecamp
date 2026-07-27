@@ -127,6 +127,9 @@ export interface Entity {
   /** Training queue, for buildings that produce units. Null otherwise. */
   production: ProductionState | null;
 
+  /** Standing-order progress, for buildings that refine. Null otherwise. */
+  refinery: RefineryState | null;
+
   /** Enemy this entity was explicitly ordered to attack. */
   attackTargetId: EntityId | null;
 
@@ -142,6 +145,11 @@ export interface Entity {
    */
   attackMoveX: number | null;
   attackMoveY: number | null;
+}
+
+export interface RefineryState {
+  /** Ticks of work put into the current batch. */
+  progress: number;
 }
 
 export interface EntityStore {
@@ -174,6 +182,7 @@ export function addEntity(store: EntityStore, spec: EntitySpec): Entity {
     job: null,
     buildTargetId: null,
     production: null,
+    refinery: null,
     attackTargetId: null,
     weaponCooldown: 0,
     attackMoveX: null,
@@ -216,6 +225,7 @@ export function addBuilding(store: EntityStore, spec: BuildingSpec): Entity {
     job: null,
     buildTargetId: null,
     production: def.produces.length > 0 ? { queue: [], progress: 0, rallyX: null, rallyY: null } : null,
+    refinery: def.refines ? { progress: 0 } : null,
     attackTargetId: null,
     weaponCooldown: 0,
     attackMoveX: null,

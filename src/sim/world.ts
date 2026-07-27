@@ -38,6 +38,7 @@ import {
 import { updateMovement } from "./movement.js";
 import { createFlowFieldCache, invalidateFlowFields, type FlowFieldCache } from "./pathing.js";
 import { updateProduction } from "./production.js";
+import { updateRefineries } from "./refinery.js";
 import { createPlayer, Resource, stockDeposits, type Player } from "./resources.js";
 import { updateVictory } from "./victory.js";
 import { createRng, type Rng } from "./rng.js";
@@ -433,6 +434,9 @@ export function tickWorld(world: World, commands: readonly Command[] = []): void
   // them there. Running it the other way round would cost every worker a tick
   // of lag on every leg of every trip.
   updateProduction(world);
+  // After production, before gathering: a batch finished this tick is in the
+  // pool for the next order, not for one already paid for this tick.
+  updateRefineries(world);
   updateEconomy(world);
   updateConstruction(world);
   // Combat before movement: fighting decides where units want to be (or that
