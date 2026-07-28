@@ -36,11 +36,18 @@ describe("choosing an opponent", () => {
     expect(difficultyFromName("  Schwer ")).toBe(Difficulty.Hard);
   });
 
-  it("falls back to normal for anything else", () => {
+  it("starts on the gentlest setting when nobody chose one", () => {
+    // Until there is a menu, the default is what almost everybody plays. A
+    // first match that is simply lost teaches nothing about the game; the
+    // harder settings are one URL parameter away for anyone who wants them.
+    expect(difficultyFromName(null)).toBe(Difficulty.Easy);
+    expect(difficultyFromName(undefined)).toBe(Difficulty.Easy);
+    expect(difficultyFromName("")).toBe(Difficulty.Easy);
+  });
+
+  it("falls back to the default for anything it cannot read", () => {
     // A typo in a URL must not decide the match, and must not throw either.
-    expect(difficultyFromName(null)).toBe(Difficulty.Normal);
-    expect(difficultyFromName("")).toBe(Difficulty.Normal);
-    expect(difficultyFromName("unmöglich")).toBe(Difficulty.Normal);
+    expect(difficultyFromName("unmöglich")).toBe(Difficulty.Easy);
   });
 });
 

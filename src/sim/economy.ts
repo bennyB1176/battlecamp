@@ -27,6 +27,7 @@ import {
 import { dist, distSq, fromTiles, tileCenter, toTileIndex } from "./fixed.js";
 import { computeFlowField, getFlowField, isReachable, type FlowField } from "./pathing.js";
 import { credit, harvestFrom, resourceOfTerrain } from "./resources.js";
+import { statsFor } from "./stats.js";
 import { isPassable, terrainAt } from "./grid.js";
 import type { World } from "./world.js";
 
@@ -146,7 +147,13 @@ function deliver(world: World, worker: Entity, job: WorkerJob): void {
 
   if (job.carrying !== null && job.carried > 0) {
     const player = world.players[worker.owner];
-    if (player) credit(player, job.carrying, job.carried);
+    if (player) {
+      credit(player, job.carrying, job.carried);
+      // Counted here, at the hand-over, rather than inside `credit`: refineries
+      // credit too, and their output was made, not dug up. Mixing the two would
+      // make the figure stop meaning "how hard my economy worked".
+      statsFor(world, worker.owner).gathered[job.carrying] += job.carried;
+    }
   }
 
   job.carried = 0;

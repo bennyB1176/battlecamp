@@ -15,6 +15,7 @@ import { isPassable, regionAtLeast } from "./grid.js";
 import { workRate, WORK_RATE_DENOMINATOR } from "./power.js";
 import { canAfford, credit, debit, RESOURCE_KINDS } from "./resources.js";
 import type { World } from "./world.js";
+import { statsFor } from "./stats.js";
 
 /** Add a unit to a building's training queue. Returns false if refused. */
 export function queueUnit(world: World, building: Entity, unitType: UnitTypeId): boolean {
@@ -85,6 +86,7 @@ export function updateProduction(world: World): void {
       x: spawn.x,
       y: spawn.y,
     });
+    statsFor(world, building.owner).unitsTrained++;
 
     if (production.rallyX !== null && production.rallyY !== null) {
       unit.goalX = production.rallyX;

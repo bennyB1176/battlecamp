@@ -107,7 +107,9 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    expect(finalHash).toBe("0d14240f");
+    // Moved because the match tally is now part of the world and part of this
+    // hash — every side's gathered, trained, built and lost counters included.
+    expect(finalHash).toBe("c1aa2dcf");
   });
 });
 

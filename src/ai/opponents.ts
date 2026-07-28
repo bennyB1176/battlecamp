@@ -26,15 +26,24 @@ const BY_NAME: Readonly<Record<string, DifficultyId>> = {
 };
 
 /**
+ * What you get without asking.
+ *
+ * The gentlest setting, because until there is a menu this is what everybody
+ * plays — and a first match that is simply lost teaches nothing about how the
+ * game works. Anyone who wants a fight is one URL parameter away.
+ */
+export const DEFAULT_DIFFICULTY: DifficultyId = Difficulty.Easy;
+
+/**
  * Read a difficulty from whatever the outside world offers — a URL parameter,
  * a saved setting, a menu.
  *
- * Anything unrecognised gives Normal rather than an error. A typo in a link
- * should start a game, not refuse to.
+ * Anything unrecognised gives the default rather than an error. A typo in a
+ * link should start a game, not refuse to.
  */
 export function difficultyFromName(name: string | null | undefined): DifficultyId {
-  if (!name) return Difficulty.Normal;
-  return BY_NAME[name.trim().toLowerCase()] ?? Difficulty.Normal;
+  if (!name) return DEFAULT_DIFFICULTY;
+  return BY_NAME[name.trim().toLowerCase()] ?? DEFAULT_DIFFICULTY;
 }
 
 /**

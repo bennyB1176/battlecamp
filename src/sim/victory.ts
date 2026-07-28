@@ -1,19 +1,38 @@
 /**
  * Who has lost, and who has won.
  *
- * A player is out when they have **nothing left at all** — no buildings *and*
- * no units. Losing every building alone is not defeat: surviving workers can
- * still put something back up, and ending the match at that moment would take
- * away a comeback that the rules otherwise allow. Conversely, an army with no
- * base is still a threat, and deserves the chance to be one.
+ * A player is out when they have **nothing left that could rebuild**: no
+ * buildings, and no unit able to put one up.
+ *
+ * The two halves of that are each there for a reason. Losing every building is
+ * not defeat — surviving workers can start again, and ending the match at that
+ * moment would take away a comeback the rules otherwise allow. But the old rule
+ * ("nothing left *at all*") went too far the other way: a side reduced to a
+ * single soldier can never build anything again, and the winner was left
+ * sweeping a 64×64 map for it before the game would admit what had happened.
+ * Whether that soldier is found changes nothing about the outcome, so it should
+ * not change when the outcome is announced.
  */
 
-import type { PlayerId } from "./entities.js";
+import { UnitType } from "../content/units.js";
+import { isUnit, type Entity, type PlayerId } from "./entities.js";
 import type { World } from "./world.js";
+
+/**
+ * Could this entity put a building up again?
+ *
+ * Buildings count because they produce: a headquarters left standing alone
+ * still trains the worker that rebuilds around it.
+ */
+export function canRebuild(entity: Entity): boolean {
+  if (!isUnit(entity)) return true;
+  return entity.typeId === UnitType.Worker;
+}
 
 export function isDefeated(world: World, playerId: PlayerId): boolean {
   for (const entity of world.entities.list) {
-    if (entity.owner === playerId) return false;
+    if (entity.owner !== playerId) continue;
+    if (canRebuild(entity)) return false;
   }
   return true;
 }

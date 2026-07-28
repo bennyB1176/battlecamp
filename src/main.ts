@@ -40,8 +40,11 @@ import { canAfford, resourceOfTerrain } from "./sim/resources.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { formatCost } from "./ui/legend-data.js";
 import { createHud, type HudAction } from "./ui/hud.js";
+import { unitIcon } from "./ui/icons.js";
+import { trainOptions } from "./ui/production-menu.js";
 import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
+import { createResultScreen } from "./ui/result-screen.js";
 
 /** Until multiplayer, the human is always player 0. */
 const LOCAL_PLAYER = 0;
@@ -61,6 +64,12 @@ const NOTICE_TICKS = 25;
 
 /** Workers sent automatically when a building is placed with none selected. */
 const AUTO_BUILDERS = 3;
+
+/**
+ * Silhouette size on a training button. Smaller than the legend's, on purpose:
+ * here it sits beside two lines of text rather than in a row of its own.
+ */
+const TRAIN_ICON_SIZE = 26;
 
 function formatClock(tick: number): string {
   const totalSeconds = Math.floor(tick / TICKS_PER_SECOND);
@@ -137,6 +146,9 @@ function start(): void {
   // Built once, filled on open. The help sheet is the one place a new player
   // can find out what the silhouettes mean without having to guess.
   const legend = createLegend();
+
+  // Watches for the end of the match and puts itself on screen when it comes.
+  const resultScreen = createResultScreen(LOCAL_PLAYER);
 
   const hud = createHud({
     onTogglePause: () => {
@@ -459,27 +471,23 @@ function start(): void {
     if (producer && chosen.length === 1) {
       const def = buildingDefOf(producer);
       const queued = producer.production?.queue.length ?? 0;
-      const actions: HudAction[] = def.produces.map((unitType) => {
-        const unit = unitDef(unitType);
-        // Asked of the same function the simulation uses, so a new resource
-        // cannot make the button lie about what the player can pay for.
-        const affordable = canAfford(player, unit.cost);
-
-        return {
-          id: `train-${unitType}`,
-          label: `${unit.name} +`,
-          detail: formatCost(unit.cost),
-          disabled: !affordable,
-          onSelect: () => {
-            pendingCommands.push({
-              type: "train",
-              playerId: LOCAL_PLAYER,
-              buildingId: producer.id,
-              unitType,
-            });
-          },
-        };
-      });
+      const actions: HudAction[] = trainOptions(def, player).map((option) => ({
+        id: `train-${option.unitType}`,
+        label: `${option.name} +`,
+        // Drawn with the renderer's own silhouette code, in the player's own
+        // colour: what the button makes is what will stand on the map.
+        icon: () => unitIcon(option.shape, LOCAL_PLAYER, TRAIN_ICON_SIZE),
+        detail: formatCost(option.cost),
+        disabled: !option.affordable,
+        onSelect: () => {
+          pendingCommands.push({
+            type: "train",
+            playerId: LOCAL_PLAYER,
+            buildingId: producer.id,
+            unitType: option.unitType,
+          });
+        },
+      }));
 
       if (queued > 0) {
         actions.push({
@@ -599,14 +607,22 @@ function start(): void {
     const context = contextForSelection();
     const showNoticeNow = world.tick < noticeUntilTick && notice !== "";
 
+    // Shows itself once, the moment the match is decided. Before this the end
+    // of a match was a single line of text beside the buttons, which on a phone
+    // reads as nothing having happened at all.
+    resultScreen.update(world);
+
     if (world.matchOver) {
-      const outcome =
-        world.winner === LOCAL_PLAYER
-          ? "Sieg — der Gegner ist ausgelöscht"
-          : world.winner === null
-            ? "Unentschieden — beide Seiten vernichtet"
-            : "Niederlage";
-      hud.setContext(outcome, context.actions);
+      // The screen can be dismissed to look at the final map, so the panel
+      // keeps a way back to it rather than making the result unreachable.
+      hud.setContext("Das Spiel ist vorbei", [
+        {
+          id: "show-result",
+          label: "Ergebnis",
+          detail: "mit Statistik",
+          onSelect: () => resultScreen.reopen(),
+        },
+      ]);
     } else {
       // The × is offered only when there is genuinely something to put down.
       // A permanently visible dismiss button that does nothing teaches the

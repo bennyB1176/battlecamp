@@ -55,6 +55,7 @@ import {
   type Player,
   type ResourceKind,
 } from "./resources.js";
+import { createStats, type MatchStats } from "./stats.js";
 import { updateVictory } from "./victory.js";
 import { createRng, type Rng } from "./rng.js";
 import { createSpatialHash, type SpatialHash } from "./spatial.js";
@@ -111,6 +112,14 @@ export interface World {
   /** Remaining yield per tile, parallel to grid.tiles. Zero where nothing grows. */
   readonly deposits: Int32Array;
   readonly players: Player[];
+  /**
+   * The match tally, one entry per player and indexed by player id.
+   *
+   * Beside the players rather than inside them: a `Player` is what somebody
+   * owns and can spend, and what they have done so far is a different question
+   * that only the result screen asks.
+   */
+  readonly stats: MatchStats[];
   readonly entities: EntityStore;
   /** Shared flow fields, keyed by goal tile. Invalidated when terrain changes. */
   readonly fields: FlowFieldCache;
@@ -154,6 +163,7 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
       createPlayer(0, STARTING_STOCK),
       createPlayer(1, STARTING_STOCK),
     ],
+    stats: [createStats(), createStats()],
     entities: createEntityStore(),
     // Sized for how many *distinct* goals exist at once, which is what actually
     // drives the cache. Every gathering worker walks to its own deposit tile, so

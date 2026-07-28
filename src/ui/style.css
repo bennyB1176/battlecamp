@@ -298,11 +298,30 @@ body {
   font-size: 13px;
   cursor: pointer;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  touch-action: manipulation;
+}
+
+/* The two text lines, kept as their own block so they stay left-aligned to
+   each other whether or not the button carries a picture. */
+.action-text {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
   gap: 1px;
-  touch-action: manipulation;
+}
+
+/* Shape says what, colour says whose — the same rule the map follows. Naming a
+   unit without showing it teaches nothing about what will be standing there. */
+.action-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-left: -2px;
 }
 
 .action:active {
@@ -486,4 +505,127 @@ body {
 .legend-table th {
   opacity: 0.6;
   font-weight: 600;
+}
+
+/* ---- Result screen ---------------------------------------------------- */
+
+/* Deliberately the loudest thing the game ever puts on screen. A match that
+   has ended used to say so in one line beside the buttons, which on a phone
+   reads as "nothing happened". */
+#result {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(6, 9, 13, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  backdrop-filter: blur(4px);
+}
+
+#result[hidden] {
+  display: none;
+}
+
+.result-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 620px);
+  max-height: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--panel-border);
+  background: #161b23;
+  overflow: hidden;
+}
+
+.result-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 16px 20px;
+}
+
+.result-headline {
+  margin: 0 0 4px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.outcome-won {
+  color: #7fd694;
+}
+.outcome-lost {
+  color: #ff8a72;
+}
+.outcome-draw {
+  color: var(--accent);
+}
+
+.result-detail {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.8;
+  max-width: 52ch;
+}
+
+/* Side by side where there is room, stacked on a narrow phone. Two columns of
+   numbers squeezed into 160 pixels each are numbers nobody reads. */
+.result-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.result-side {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.result-side.winner {
+  border-color: var(--accent);
+}
+
+.result-side-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+/* The side's own colour, the same one its units carry on the map. */
+.result-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.result-row.result-sub {
+  font-size: 12px;
+  opacity: 0.6;
+  padding: 1px 0 1px 6px;
+}
+
+.result-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.result-hint {
+  margin: 16px 0 0;
+  font-size: 12px;
+  opacity: 0.55;
 }
