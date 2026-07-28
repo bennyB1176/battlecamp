@@ -1,15 +1,18 @@
 /**
- * Placeholder map generator.
+ * The map generator: two octaves of integer value noise for elevation and
+ * moisture, a few thresholds, then scattered resource clusters.
  *
- * M0 only needs *something* worth panning across, so this is deliberately
- * simple: two octaves of integer value noise for elevation and moisture, a few
- * thresholds, then scattered resource clusters. The real generator — biomes,
- * rotationally symmetric start positions, guaranteed-fair resource budgets —
- * lands in M8 and will replace this file wholesale.
+ * The thresholds are no longer constants. They come from the biome table in
+ * `content/biomes.ts`, which is what turns "the same kind of place with the
+ * lakes moved around" into four maps that are played differently — a desert
+ * that starves you of wood, a tundra that slows everything down, badlands cut
+ * into pockets by lava.
  *
  * All arithmetic is integer so the same seed yields the same map everywhere.
  */
 
+import type { BiomeDef } from "../content/biomes.js";
+import { biomeDef, Biome } from "../content/biomes.js";
 import { createGrid, setTerrain, Terrain, terrainAt, type TerrainType, type TileGrid } from "./grid.js";
 import { nextInt, nextRange, type Rng } from "./rng.js";
 
@@ -74,6 +77,7 @@ function scatterClusters(
   grid: TileGrid,
   rng: Rng,
   terrain: TerrainType,
+  ground: TerrainType,
   count: number,
   minRadius: number,
   maxRadius: number,
@@ -89,8 +93,9 @@ function scatterClusters(
         if (dx * dx + dy * dy > radiusSq) continue;
         const tx = cx + dx;
         const ty = cy + dy;
-        const existing = terrainAt(grid, tx, ty);
-        if (existing !== Terrain.Grass && existing !== Terrain.Sand) continue;
+        // Only onto the biome's open ground: a seam must not swallow water,
+        // rock, lava or forest, and the open ground is no longer always grass.
+        if (terrainAt(grid, tx, ty) !== ground) continue;
         // Ragged edges: the further from the centre, the likelier we skip.
         if (nextInt(rng, radiusSq + 1) < dx * dx + dy * dy) continue;
         setTerrain(grid, tx, ty, terrain);
@@ -99,8 +104,13 @@ function scatterClusters(
   }
 }
 
-export function generateMap(rng: Rng, width: number, height: number): TileGrid {
-  const grid = createGrid(width, height, Terrain.Grass);
+export function generateMap(
+  rng: Rng,
+  width: number,
+  height: number,
+  biome: BiomeDef = biomeDef(Biome.Grassland),
+): TileGrid {
+  const grid = createGrid(width, height, biome.ground);
 
   const elevationCoarse = makeLattice(rng, width, height, 16);
   const elevationFine = makeLattice(rng, width, height, 6);
@@ -112,15 +122,15 @@ export function generateMap(rng: Rng, width: number, height: number): TileGrid {
       const elevation = sampleFbm(elevationCoarse, elevationFine, x, y);
 
       let terrain: TerrainType;
-      if (elevation < 320) {
-        terrain = Terrain.Water;
-      } else if (elevation < 380) {
-        terrain = Terrain.Sand;
-      } else if (elevation > 800) {
+      if (elevation < biome.waterLevel) {
+        terrain = biome.barrier;
+      } else if (elevation < biome.shoreLevel) {
+        terrain = biome.shore;
+      } else if (elevation > biome.rockLevel) {
         terrain = Terrain.Rock;
       } else {
         const moisture = sampleFbm(moistureCoarse, moistureFine, x, y);
-        terrain = moisture > 620 ? Terrain.Forest : Terrain.Grass;
+        terrain = moisture > biome.forestLevel ? Terrain.Forest : biome.ground;
       }
 
       setTerrain(grid, x, y, terrain);
@@ -128,7 +138,7 @@ export function generateMap(rng: Rng, width: number, height: number): TileGrid {
   }
 
   const area = width * height;
-  scatterClusters(grid, rng, Terrain.Ore, Math.max(4, Math.round(area / 900)), 2, 4);
+  scatterClusters(grid, rng, Terrain.Ore, biome.ground, Math.max(4, Math.round(area / biome.oreSpacing)), 2, 4);
   // More stone than ore, and it used to be far less. Stone is in the price of
   // nearly every building in the game, while ore only buys units — so the map
   // has to hold more of it, not less. At the old density a sixty-four square map
@@ -136,7 +146,7 @@ export function generateMap(rng: Rng, width: number, height: number): TileGrid {
   // most starts simply could not afford a second refinery. The bots banked
   // thousands of ore they could never spend and looked broken for an hour before
   // the fault turned out to be here.
-  scatterClusters(grid, rng, Terrain.Stone, Math.max(6, Math.round(area / 500)), 2, 4);
+  scatterClusters(grid, rng, Terrain.Stone, biome.ground, Math.max(6, Math.round(area / biome.stoneSpacing)), 2, 4);
 
   return grid;
 }

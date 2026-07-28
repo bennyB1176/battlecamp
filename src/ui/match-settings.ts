@@ -14,6 +14,7 @@
  */
 
 import { Difficulty, type DifficultyId } from "../ai/bot.js";
+import { Biome, BIOME_LIST, biomeDef, type BiomeId } from "../content/biomes.js";
 
 export interface MapSize {
   readonly name: string;
@@ -37,6 +38,7 @@ export interface MatchSettings {
   readonly seed: number;
   readonly difficulty: DifficultyId;
   readonly size: number;
+  readonly biome: BiomeId;
 }
 
 /** Largest seed the game hands out. Six digits: readable, and easy to type. */
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Omit<MatchSettings, "seed"> & { readonly seed: nu
   // nothing about how the game works.
   difficulty: Difficulty.Easy,
   size: 64,
+  biome: Biome.Grassland,
 };
 
 const DIFFICULTY_BY_NAME: Readonly<Record<string, DifficultyId>> = {
@@ -57,6 +60,20 @@ const DIFFICULTY_BY_NAME: Readonly<Record<string, DifficultyId>> = {
   schwer: Difficulty.Hard,
   hard: Difficulty.Hard,
 };
+
+/** Biome slugs, so a link says `gelaende=wueste` rather than `gelaende=1`. */
+const BIOME_SLUGS: Readonly<Record<BiomeId, string>> = {
+  [Biome.Grassland]: "grasland",
+  [Biome.Desert]: "wueste",
+  [Biome.Tundra]: "tundra",
+  [Biome.Badlands]: "oedland",
+};
+
+const BIOME_BY_SLUG: Readonly<Record<string, BiomeId>> = Object.fromEntries(
+  BIOME_LIST.map((biome) => [BIOME_SLUGS[biome], biome]),
+);
+
+export { BIOME_SLUGS };
 
 /** German name for a difficulty, for links and for the setup screen. */
 export const DIFFICULTY_SLUGS: Readonly<Record<DifficultyId, string>> = {
@@ -109,11 +126,19 @@ export function parseSettings(query: URLSearchParams): MatchSettings {
   const sizeText = (query.get("groesse") ?? "").trim();
   const sizeValue = /^\d+$/.test(sizeText) ? Number(sizeText) : null;
 
+  const biomeName = (query.get("gelaende") ?? "").trim().toLowerCase();
+
   return {
     seed: seed ?? randomSeed(),
     difficulty: DIFFICULTY_BY_NAME[difficultyName] ?? DEFAULT_SETTINGS.difficulty,
     size: sizeValue === null ? DEFAULT_SETTINGS.size : snapSize(sizeValue),
+    biome: BIOME_BY_SLUG[biomeName] ?? DEFAULT_SETTINGS.biome,
   };
+}
+
+/** What this biome is called, for the setup screen and the status readout. */
+export function biomeName(biome: BiomeId): string {
+  return biomeDef(biome).name;
 }
 
 /** The query string that reproduces this match. */
@@ -122,5 +147,6 @@ export function settingsToQuery(settings: MatchSettings): string {
   query.set("seed", String(settings.seed));
   query.set("gegner", DIFFICULTY_SLUGS[settings.difficulty]);
   query.set("groesse", String(settings.size));
+  query.set("gelaende", BIOME_SLUGS[settings.biome]);
   return query.toString();
 }

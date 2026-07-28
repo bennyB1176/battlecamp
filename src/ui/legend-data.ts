@@ -185,6 +185,39 @@ export function buildingEntries(): BuildingEntry[] {
     });
 }
 
+export interface TerrainEntry {
+  readonly name: string;
+  readonly color: string;
+  /** What it means for a unit: a wall, slow going, or nothing at all. */
+  readonly effect: string;
+}
+
+/**
+ * Every terrain, with what it does to you.
+ *
+ * Derived from the same table the map is drawn and pathed from, so a new
+ * terrain type — snow and lava arrived with the biomes — turns up here on its
+ * own. A hand-written list would have been two entries short the day they did.
+ */
+export function terrainEntries(): TerrainEntry[] {
+  return (Object.keys(TERRAIN_INFO).map(Number) as TerrainType[]).map((terrain) => {
+    const info = TERRAIN_INFO[terrain];
+
+    let effect: string;
+    if (!info.passable) {
+      effect = "unpassierbar";
+    } else if (!info.buildable) {
+      effect = info.moveCost > 100 ? "kein Bauplatz, langsam" : "kein Bauplatz";
+    } else if (info.moveCost > 100) {
+      effect = `bebaubar, ${Math.round(info.moveCost - 100)} % langsamer`;
+    } else {
+      effect = "bebaubar";
+    }
+
+    return { name: info.name, color: info.color, effect };
+  });
+}
+
 export interface ResourceEntry {
   readonly name: string;
   readonly color: string;

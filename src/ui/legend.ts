@@ -14,7 +14,13 @@
 
 import { UnitType } from "../content/units.js";
 import { buildingIcon, unitIcon } from "./icons.js";
-import { buildingEntries, counterTriangle, resourceEntries, unitEntries } from "./legend-data.js";
+import {
+  buildingEntries,
+  counterTriangle,
+  resourceEntries,
+  terrainEntries,
+  unitEntries,
+} from "./legend-data.js";
 
 const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["Ein Finger ziehen", "Karte verschieben"],
@@ -115,6 +121,29 @@ function buildContent(): DocumentFragment {
     paragraph(
       "Die Farbe sagt, wem etwas gehört. Die Form sagt, was es ist. Deshalb sind alle deine Einheiten " +
         "gleich eingefärbt und unterscheiden sich nur in der Silhouette.",
+    ),
+  );
+
+  fragment.append(heading("Gelände"));
+  const terrains = document.createElement("div");
+  terrains.className = "legend-resources";
+  for (const entry of terrainEntries()) {
+    const chip = document.createElement("span");
+    chip.className = "legend-chip";
+    const dot = document.createElement("span");
+    dot.className = "legend-dot";
+    dot.style.background = entry.color;
+    const text = document.createElement("span");
+    text.textContent = `${entry.name} — ${entry.effect}`;
+    chip.append(dot, text);
+    terrains.appendChild(chip);
+  }
+  fragment.append(
+    terrains,
+    paragraph(
+      "Welche davon vorkommen, entscheidet das Gelände beim Spielstart. Grasland ist der " +
+        "Maßstab; die Wüste nimmt dir das Holz, die Tundra macht alles langsamer, und im " +
+        "Ödland zerschneiden Lavaadern die Karte in Kammern.",
     ),
   );
 

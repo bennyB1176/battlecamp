@@ -45,7 +45,7 @@ import { unitIcon } from "./ui/icons.js";
 import { trainOptions } from "./ui/production-menu.js";
 import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
-import { parseSettings, randomSeed, type MatchSettings } from "./ui/match-settings.js";
+import { biomeName, parseSettings, randomSeed, type MatchSettings } from "./ui/match-settings.js";
 import { applySettings, showSetupScreen } from "./ui/setup-screen.js";
 import { attachMinimap } from "./ui/minimap-panel.js";
 import { createResultScreen } from "./ui/result-screen.js";
@@ -104,7 +104,12 @@ function start(settings: MatchSettings): void {
     throw new Error("Canvas #game is missing from index.html");
   }
 
-  const world: World = createWorld({ seed: settings.seed, width: settings.size, height: settings.size });
+  const world: World = createWorld({
+    seed: settings.seed,
+    width: settings.size,
+    height: settings.size,
+    biome: settings.biome,
+  });
   const camera: Camera = createCamera(world.grid.width, world.grid.height);
   const renderer = createRenderer(canvas, world);
 
@@ -660,7 +665,8 @@ function start(settings: MatchSettings): void {
       // Opponent and map number are in here so a player can always tell what
       // they are actually playing — and read the seed back out to share it.
       hud.setStats(
-        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · Karte ${settings.seed} (${settings.size}) · ` +
+        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · ${biomeName(settings.biome)} ${settings.seed} ` +
+          `(${settings.size}) · ` +
           `${fps} fps · ${world.entities.list.length} Obj. · ` +
           `Sim ${lastTickMs.toFixed(2)} ms · Frame ${renderer.lastFrameMs.toFixed(2)} ms`,
       );
