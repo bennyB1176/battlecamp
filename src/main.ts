@@ -45,6 +45,7 @@ import { unitIcon } from "./ui/icons.js";
 import { trainOptions } from "./ui/production-menu.js";
 import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
+import { attachMinimap } from "./ui/minimap-panel.js";
 import { createResultScreen } from "./ui/result-screen.js";
 
 /** Until multiplayer, the human is always player 0. */
@@ -150,6 +151,10 @@ function start(): void {
 
   // Watches for the end of the match and puts itself on screen when it comes.
   const resultScreen = createResultScreen(LOCAL_PLAYER);
+
+  // The overview. Fog made it necessary: with it, zooming out shows a mostly
+  // black screen, and there is otherwise no way to answer "where am I".
+  const minimap = attachMinimap(world, camera);
 
   const hud = createHud({
     onTogglePause: () => {
@@ -604,6 +609,8 @@ function start(): void {
       buildPreview: armedBuilding,
       localPlayer: LOCAL_PLAYER,
     });
+
+    minimap.draw(world, camera, LOCAL_PLAYER);
 
     const player = world.players[LOCAL_PLAYER]!;
     hud.setResources(player.resources);

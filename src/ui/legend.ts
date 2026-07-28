@@ -31,6 +31,8 @@ const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["Gelände antippen (mit Auswahl)", "Hingehen"],
   ["⏸ oder Leertaste", "Pause — Befehle gehen auch pausiert"],
   ["▶︎ antippen", "Tempo: 1× → 2× → 4× → wieder 1×"],
+  ["Übersichtskarte antippen", "Dorthin springen"],
+  ["▾ über der Übersichtskarte", "Sie ein- und ausklappen"],
   ["⌖ antippen", "Zurück zur eigenen Basis"],
   ["i antippen", "Technische Anzeige ein- und ausblenden"],
 ];
@@ -86,6 +88,10 @@ function buildContent(): DocumentFragment {
       "Deshalb ist Aufklärung eine eigene Aufgabe: der Späher kämpft schlecht und sieht am weitesten. " +
         "Wer nicht nachsieht, baut gegen eine Armee, die er nur vermutet. Die Gegner spielen mit " +
         "derselben Einschränkung — nur die Stufe „schwer\" sieht durch den Nebel.",
+    ),
+    paragraph(
+      "Die Übersichtskarte oben rechts zeigt dasselbe und nicht mehr: bekanntes Gelände, aber " +
+        "gegnerische Einheiten nur dort, wo du gerade hinsiehst. Ein Antippen springt hin.",
     ),
   );
 
