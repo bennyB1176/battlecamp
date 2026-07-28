@@ -55,22 +55,37 @@ function minTileSize(camera: Camera): number {
   return Math.max(ABSOLUTE_MIN_TILE_SIZE, fit);
 }
 
+/**
+ * Keep the camera somewhere sensible.
+ *
+ * The rule is **any tile can reach the middle of the screen**, not "the
+ * viewport stays inside the map". The difference is the whole point: pinning
+ * the viewport to the map means a base in a corner is stuck in a corner of the
+ * *screen*, which on a phone is exactly where the status bar and the button row
+ * are. Zooming in on your own headquarters put it under the HUD with no way to
+ * push it out — you were fighting the map border, not looking at your base.
+ *
+ * So the centre is clamped to the map's own bounds instead. At worst three
+ * quarters of the screen is background, which reads clearly as the edge of the
+ * world (the border is drawn) and always leaves the map in view.
+ */
 export function clampCamera(camera: Camera): void {
   camera.tileSize = Math.min(MAX_TILE_SIZE, Math.max(minTileSize(camera), camera.tileSize));
 
   const visibleX = camera.viewportWidth / camera.tileSize;
   const visibleY = camera.viewportHeight / camera.tileSize;
 
-  // If the map is narrower than the viewport, centre it instead of clamping.
+  // If the map is narrower than the viewport, centre it: there is nothing to
+  // pan to, and letting it drift would just move the map around under the HUD.
   camera.centerX =
     visibleX >= camera.mapWidth
       ? camera.mapWidth / 2
-      : Math.min(camera.mapWidth - visibleX / 2, Math.max(visibleX / 2, camera.centerX));
+      : Math.min(camera.mapWidth, Math.max(0, camera.centerX));
 
   camera.centerY =
     visibleY >= camera.mapHeight
       ? camera.mapHeight / 2
-      : Math.min(camera.mapHeight - visibleY / 2, Math.max(visibleY / 2, camera.centerY));
+      : Math.min(camera.mapHeight, Math.max(0, camera.centerY));
 }
 
 export function resizeCamera(camera: Camera, width: number, height: number): void {

@@ -77,27 +77,12 @@ body {
   flex-wrap: wrap;
 }
 
-/* Portrait on a phone is the tight case: trim the padding so the row keeps its
-   44 px touch targets instead of shrinking them. */
-@media (max-width: 480px) {
-  .ctrl {
-    padding: 0 8px;
-  }
-
-  /* Four pixels is what makes seven 46 px targets fit across a 375 px phone in
-     one row. The wrap above is still the guarantee; this is what keeps it from
-     being needed. */
-  #hud-bottom {
-    gap: 4px;
-  }
-}
-
 .pill {
   pointer-events: none;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 5px 11px;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -112,8 +97,8 @@ body {
    more pill of state — it is a control, and the shape says so. */
 .info-toggle {
   pointer-events: auto;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   color: var(--text);
   font-size: 13px;
@@ -182,7 +167,7 @@ body {
    narrow enough for a phone in portrait. */
 .pill.resources {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   font-weight: 600;
 }
 
@@ -628,4 +613,49 @@ body {
   margin: 16px 0 0;
   font-size: 12px;
   opacity: 0.55;
+}
+
+/* ---- Phone, held upright ---------------------------------------------- */
+
+/* Last in the file on purpose. These rules override base rules of the same
+   specificity, and CSS breaks ties by source order — sitting above them, as
+   this block used to, meant every single one of them was silently ignored.
+   The padding trim it claims to make has only actually applied since it moved
+   down here. */
+@media (max-width: 480px) {
+  .ctrl {
+    padding: 0 8px;
+  }
+
+  /* Four pixels is what makes seven 46 px targets fit across a 375 px phone in
+     one row. The wrap on #hud-bottom is still the guarantee; this is what keeps
+     it from being needed. */
+  #hud-bottom {
+    gap: 4px;
+  }
+
+  /* The same problem at the top, and it costs more than it looks: the row used
+     to wrap, and two lines of status bar cover 65 px of map — right where a
+     base sits after you zoom in on it. */
+  #hud-top {
+    gap: 5px;
+  }
+
+  .pill {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* The widest thing up here, so every pixel it gives back is a pixel of map.
+     Trimmed until the clock and the info button fit beside it on one line. */
+  .pill.resources {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .res::before {
+    width: 8px;
+    height: 8px;
+    margin-right: 3px;
+  }
 }

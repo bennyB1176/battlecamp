@@ -92,19 +92,50 @@ describe("zoom", () => {
 });
 
 describe("clamping", () => {
-  it("keeps the viewport inside the map when panning far away", () => {
+  it("lets any tile of the map reach the middle of the screen", () => {
+    // The rule the old one got wrong. Pinning the viewport inside the map means
+    // a base in a corner can never leave the corner of the *screen* — which on
+    // a phone is where the status bar and the button row live. Zooming in on
+    // your own headquarters put it behind the HUD and there was no way to move
+    // it out.
+    const camera = testCamera();
+    camera.tileSize = 48;
+
+    for (const [tileX, tileY] of [
+      [0, 0],
+      [camera.mapWidth, camera.mapHeight],
+      [0, camera.mapHeight],
+    ] as const) {
+      centerOn(camera, tileX, tileY);
+      expect(camera.centerX, `corner ${tileX},${tileY} could not be centred`).toBeCloseTo(tileX, 6);
+      expect(camera.centerY, `corner ${tileX},${tileY} could not be centred`).toBeCloseTo(tileY, 6);
+    }
+  });
+
+  it("still refuses to send the map off the screen entirely", () => {
+    // The overscroll has to stop somewhere, or a stray fling leaves the player
+    // looking at empty background with no idea which way home is.
     const camera = testCamera();
     camera.tileSize = 24;
     centerOn(camera, -500, 9000);
     clampCamera(camera);
 
-    const topLeft = screenToWorld(camera, 0, 0);
-    const bottomRight = screenToWorld(camera, camera.viewportWidth, camera.viewportHeight);
+    expect(camera.centerX).toBeGreaterThanOrEqual(0);
+    expect(camera.centerY).toBeGreaterThanOrEqual(0);
+    expect(camera.centerX).toBeLessThanOrEqual(camera.mapWidth);
+    expect(camera.centerY).toBeLessThanOrEqual(camera.mapHeight);
+  });
 
-    expect(topLeft.x).toBeGreaterThanOrEqual(-0.001);
-    expect(topLeft.y).toBeGreaterThanOrEqual(-0.001);
-    expect(bottomRight.x).toBeLessThanOrEqual(camera.mapWidth + 0.001);
-    expect(bottomRight.y).toBeLessThanOrEqual(camera.mapHeight + 0.001);
+  it("keeps some of the map on screen at every zoom level", () => {
+    const camera = testCamera();
+    for (const tileSize of [6, 12, 24, 48, 72]) {
+      camera.tileSize = tileSize;
+      centerOn(camera, -999, -999);
+
+      const bottomRight = screenToWorld(camera, camera.viewportWidth, camera.viewportHeight);
+      expect(bottomRight.x, `nothing left on screen at ${tileSize}px tiles`).toBeGreaterThan(0);
+      expect(bottomRight.y, `nothing left on screen at ${tileSize}px tiles`).toBeGreaterThan(0);
+    }
   });
 
   it("centres a map narrower than the viewport instead of pinning it to a corner", () => {
