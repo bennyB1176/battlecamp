@@ -307,6 +307,18 @@ function seedNearbyResources(world: World, home: { tileX: number; tileY: number 
   }
 }
 
+/**
+ * Is this tile close enough to home to count?
+ *
+ * As the crow flies, not as a square. The square was the original reading and
+ * it quietly overstated the guarantee by half: a seam at the corner of a
+ * twelve-tile box is seventeen tiles of walking, so a start could satisfy
+ * "stone within reach" while its workers spent the opening on the road.
+ */
+function withinStartReach(dx: number, dy: number): boolean {
+  return dx * dx + dy * dy <= START_REACH_TILES * START_REACH_TILES;
+}
+
 function countNearby(
   world: World,
   home: { tileX: number; tileY: number },
@@ -315,6 +327,7 @@ function countNearby(
   let found = 0;
   for (let dy = -START_REACH_TILES; dy <= START_REACH_TILES; dy++) {
     for (let dx = -START_REACH_TILES; dx <= START_REACH_TILES; dx++) {
+      if (!withinStartReach(dx, dy)) continue;
       const tileX = home.tileX + dx;
       const tileY = home.tileY + dy;
       if (resourceOfTerrain(terrainAt(world.grid, tileX, tileY)) !== kind) continue;
@@ -341,6 +354,9 @@ function plantSeam(
     for (let dy = -radius; dy <= radius && planted < START_TILES_WANTED; dy++) {
       for (let dx = -radius; dx <= radius && planted < START_TILES_WANTED; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        // Same measure the guarantee is stated in, or the corners of the outer
+        // rings would plant seams the workers cannot sensibly reach.
+        if (!withinStartReach(dx, dy)) continue;
 
         const tileX = home.tileX + dx;
         const tileY = home.tileY + dy;
@@ -422,12 +438,48 @@ function spawnBase(
 }
 
 /**
- * How far apart two openings must be, in tiles.
+ * How far apart two openings must be on a 64-tile map, in tiles.
  *
  * Below this the two build radii overlap and the match is a coin flip decided
  * in the first thirty seconds, before either player has made a decision.
  */
-const MIN_START_SEPARATION_TILES = 22;
+const START_SEPARATION_AT_64 = 22;
+
+/**
+ * The same distance in proportion to the map, because the map is no longer
+ * always 64 tiles.
+ *
+ * A fixed 22 is nearly half of a small map — unmeetable, so the search fell
+ * straight through to its last resort — and a modest gap on a large one. Scaled
+ * from the value the default map was tuned at, so that map is unaffected.
+ */
+function startSeparationTiles(grid: TileGrid): number {
+  const shortEdge = Math.min(grid.width, grid.height);
+  return Math.max(8, Math.round((shortEdge * START_SEPARATION_AT_64) / 64));
+}
+
+/**
+ * The distances the search will settle for, best first.
+ *
+ * It used to be "the full distance, or else anywhere at all", and the gap
+ * between those two is where a broken match lives: on a small map seed 6 put
+ * the two headquarters **five tiles apart**, close enough to see each other's
+ * workers at the opening whistle. Stepping down means a cramped start is now
+ * genuinely cramped rather than catastrophic, and zero stays only as the last
+ * resort it was always meant to be — no base at all is worse than a bad one.
+ */
+function separationLadder(grid: TileGrid): number[] {
+  const target = startSeparationTiles(grid);
+  const steps = [target, Math.round(target * 0.8), Math.round(target * 0.65), FLOOR_SEPARATION_TILES, 0];
+  return [...new Set(steps)].filter((step) => step >= 0).sort((a, b) => b - a);
+}
+
+/**
+ * Below this two bases share a yard: the headquarters build radius is seven
+ * tiles, so anything under about fifteen means the two players are placing
+ * buildings into each other's opening.
+ */
+const FLOOR_SEPARATION_TILES = 15;
 
 /**
  * Find ground near the anchor that will take a headquarters, and place it.
@@ -444,10 +496,11 @@ function placeStartingHeadquarters(
   anchorY: number,
   shared: Uint8Array,
 ): Entity | null {
-  return (
-    trySiteNear(world, playerId, anchorX, anchorY, shared, MIN_START_SEPARATION_TILES) ??
-    trySiteNear(world, playerId, anchorX, anchorY, shared, 0)
-  );
+  for (const separation of separationLadder(world.grid)) {
+    const placed = trySiteNear(world, playerId, anchorX, anchorY, shared, separation);
+    if (placed) return placed;
+  }
+  return null;
 }
 
 function trySiteNear(

@@ -94,15 +94,10 @@ function content(result: MatchResult): HTMLElement {
   for (const side of result.sides) sides.appendChild(column(side));
   wrap.appendChild(sides);
 
-  const hint = document.createElement("p");
-  hint.className = "result-hint";
-  hint.textContent = "Neu laden startet ein neues Spiel.";
-  wrap.appendChild(hint);
-
   return wrap;
 }
 
-export function createResultScreen(localPlayer: PlayerId): ResultScreen {
+export function createResultScreen(localPlayer: PlayerId, onNewMatch?: () => void): ResultScreen {
   const overlay = document.createElement("div");
   overlay.id = "result";
   overlay.hidden = true;
@@ -126,7 +121,16 @@ export function createResultScreen(localPlayer: PlayerId): ResultScreen {
   const body = document.createElement("div");
   body.className = "result-body";
 
+  // The way on. Without it the only way to play again was to reload, which
+  // dropped the player back into the identical map they had just finished.
+  const again = document.createElement("button");
+  again.type = "button";
+  again.id = "result-again";
+  again.textContent = "Neues Spiel";
+  again.addEventListener("click", () => onNewMatch?.());
+
   panel.append(bar, body);
+  if (onNewMatch) body.after(again);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 

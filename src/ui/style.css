@@ -721,3 +721,172 @@ body {
 #minimap-toggle:active {
   transform: scale(0.9);
 }
+
+/* ---- Setup screen ------------------------------------------------------ */
+
+#setup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.setup-panel {
+  width: min(100%, 520px);
+  margin: auto;
+}
+
+.setup-panel h1 {
+  margin: 0 0 6px;
+  font-size: 30px;
+  letter-spacing: 0.01em;
+}
+
+.setup-blurb {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  opacity: 0.75;
+  max-width: 46ch;
+}
+
+.setup-panel h2 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin: 18px 0 8px;
+}
+
+/* One column on a phone: three options side by side leaves no room for the
+   one line of text that explains what each of them actually does. */
+.setup-choices {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.setup-choice strong {
+  font-size: 15px;
+}
+
+.setup-choice span {
+  font-size: 12px;
+  opacity: 0.62;
+}
+
+.setup-choice.chosen {
+  border-color: var(--accent);
+  background: rgba(255, 214, 102, 0.12);
+}
+
+.setup-choice.chosen strong {
+  color: var(--accent);
+}
+
+.setup-seed {
+  display: flex;
+  gap: 8px;
+}
+
+#setup-seed {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.setup-reroll {
+  flex: none;
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.setup-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.55;
+  max-width: 48ch;
+}
+
+#setup-start {
+  width: 100%;
+  margin-top: 24px;
+  min-height: 54px;
+  border-radius: 14px;
+  border: 1px solid var(--accent);
+  background: rgba(255, 214, 102, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#setup-start:active,
+.setup-choice:active,
+.setup-reroll:active {
+  transform: scale(0.98);
+}
+
+/* Sits under the tally, full width: after a match this is the thing the player
+   wants, and it should not be a small link in a corner. */
+#result-again {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 0 16px 18px;
+  min-height: 50px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(255, 214, 102, 0.16);
+  color: var(--accent);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#result-again:active {
+  transform: scale(0.98);
+}

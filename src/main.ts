@@ -13,7 +13,7 @@
  * simulation to enforce what is legal and the HUD to draw buttons.
  */
 
-import { createOpponents, difficultyFromName, opponentCommands } from "./ai/opponents.js";
+import { createOpponents, opponentCommands } from "./ai/opponents.js";
 import { DIFFICULTY_NAMES } from "./ai/bot.js";
 import { BUILDABLE, buildingDef, type BuildingTypeId } from "./content/buildings.js";
 import { unitDef, UnitType } from "./content/units.js";
@@ -45,6 +45,8 @@ import { unitIcon } from "./ui/icons.js";
 import { trainOptions } from "./ui/production-menu.js";
 import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
+import { parseSettings, randomSeed, type MatchSettings } from "./ui/match-settings.js";
+import { applySettings, showSetupScreen } from "./ui/setup-screen.js";
 import { attachMinimap } from "./ui/minimap-panel.js";
 import { createResultScreen } from "./ui/result-screen.js";
 
@@ -96,21 +98,17 @@ function placementMessage(error: PlacementErrorKind | undefined): string {
   }
 }
 
-function start(): void {
+function start(settings: MatchSettings): void {
   const canvas = document.getElementById("game");
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error("Canvas #game is missing from index.html");
   }
 
-  // A fixed seed for now; M8's skirmish setup screen will let the player choose.
-  const world: World = createWorld({ seed: 20260727, width: 64, height: 64 });
+  const world: World = createWorld({ seed: settings.seed, width: settings.size, height: settings.size });
   const camera: Camera = createCamera(world.grid.width, world.grid.height);
   const renderer = createRenderer(canvas, world);
 
-  // Until the skirmish setup screen exists, the difficulty comes from the URL:
-  // ?gegner=leicht | normal | schwer. Anything else means Leicht. It is not a
-  // menu, but it is one link away on a phone, which is what matters today.
-  const difficulty = difficultyFromName(new URLSearchParams(window.location.search).get("gegner"));
+  const difficulty = settings.difficulty;
   const opponents = createOpponents(world, LOCAL_PLAYER, difficulty);
 
   /**
@@ -150,7 +148,12 @@ function start(): void {
   const legend = createLegend();
 
   // Watches for the end of the match and puts itself on screen when it comes.
-  const resultScreen = createResultScreen(LOCAL_PLAYER);
+  // "New match" goes back through the setup screen rather than straight into a
+  // fresh map: after twenty minutes the player has an opinion about the size
+  // and the opponent, and this is the moment they want to act on it.
+  const resultScreen = createResultScreen(LOCAL_PLAYER, () => {
+    void showSetupScreen({ ...settings, seed: randomSeed() }).then(applySettings);
+  });
 
   // The overview. Fog made it necessary: with it, zooming out shows a mostly
   // black screen, and there is otherwise no way to answer "where am I".
@@ -654,10 +657,11 @@ function start(): void {
       fpsWindowStart = now;
 
       hud.setClock(`${formatClock(world.tick)}${paused ? " ⏸" : ""}`);
-      // The difficulty is in here because there is no menu yet: without it the
-      // player has no way to tell whether ?gegner=schwer actually took effect.
+      // Opponent and map number are in here so a player can always tell what
+      // they are actually playing — and read the seed back out to share it.
       hud.setStats(
-        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · ${fps} fps · ${world.entities.list.length} Obj. · ` +
+        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · Karte ${settings.seed} (${settings.size}) · ` +
+          `${fps} fps · ${world.entities.list.length} Obj. · ` +
           `Sim ${lastTickMs.toFixed(2)} ms · Frame ${renderer.lastFrameMs.toFixed(2)} ms`,
       );
     }
@@ -666,10 +670,30 @@ function start(): void {
   requestAnimationFrame(frame);
 }
 
+/**
+ * Open the game.
+ *
+ * A link that already names a map goes straight into it — that is what makes a
+ * shared seed work, and what makes "new game" a reload rather than a teardown
+ * of every listener and cache the running match has built up. Without one, the
+ * setup screen comes first.
+ */
+async function boot(): Promise<void> {
+  const query = new URLSearchParams(window.location.search);
+  const settings = parseSettings(query);
+
+  if (query.has("seed")) {
+    start(settings);
+    return;
+  }
+
+  applySettings(await showSetupScreen(settings));
+}
+
 // The bundle may be inlined ahead of the markup (single-file builds), so wait
 // for the DOM rather than assuming the canvas already exists.
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", start, { once: true });
+  document.addEventListener("DOMContentLoaded", () => void boot(), { once: true });
 } else {
-  start();
+  void boot();
 }
