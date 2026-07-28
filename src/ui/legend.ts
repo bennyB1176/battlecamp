@@ -12,9 +12,8 @@
  * holding it in memory would be paying for something almost never looked at.
  */
 
-import { playerColors } from "../content/players.js";
-import { drawBuildingGlyph, traceUnitShape } from "../render/entities.js";
 import { UnitType } from "../content/units.js";
+import { buildingIcon, unitIcon } from "./icons.js";
 import { buildingEntries, counterTriangle, resourceEntries, unitEntries } from "./legend-data.js";
 
 const GESTURES: ReadonlyArray<readonly [string, string]> = [
@@ -35,75 +34,6 @@ const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["⌖ antippen", "Zurück zur eigenen Basis"],
   ["i antippen", "Technische Anzeige ein- und ausblenden"],
 ];
-
-/** Draw a unit silhouette into a small canvas, exactly as the game draws it. */
-function unitIcon(shape: string, playerId: number): HTMLCanvasElement {
-  const size = 34;
-  const canvas = document.createElement("canvas");
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = size * dpr;
-  canvas.height = size * dpr;
-  canvas.style.width = `${size}px`;
-  canvas.style.height = `${size}px`;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
-
-  ctx.scale(dpr, dpr);
-  const colors = playerColors(playerId);
-  const radius = size * 0.32;
-
-  ctx.translate(size / 2, size / 2);
-  ctx.fillStyle = colors.body;
-  ctx.strokeStyle = colors.dark;
-  ctx.lineWidth = Math.max(1, radius * 0.22);
-  traceUnitShape(ctx, shape, radius);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = colors.light;
-  ctx.beginPath();
-  ctx.arc(radius * 0.42, 0, Math.max(1, radius * 0.22), 0, Math.PI * 2);
-  ctx.fill();
-
-  return canvas;
-}
-
-/** A small square in the player's colours, standing in for a building. */
-/**
- * A building's icon, drawn with the renderer's own glyph code.
- *
- * The same rule the unit icons follow: one piece of code decides what a smelter
- * looks like. A hand-drawn copy here would be a second answer to that question,
- * and the two would part ways the first time a glyph was retuned.
- */
-function buildingIcon(playerId: number, glyph: string): HTMLCanvasElement {
-  const size = 34;
-  const canvas = document.createElement("canvas");
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = size * dpr;
-  canvas.height = size * dpr;
-  canvas.style.width = `${size}px`;
-  canvas.style.height = `${size}px`;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
-
-  ctx.scale(dpr, dpr);
-  const colors = playerColors(playerId);
-  const inset = size * 0.12;
-
-  ctx.fillStyle = colors.body;
-  ctx.fillRect(inset, inset, size - inset * 2, size - inset * 2);
-  ctx.fillStyle = colors.dark;
-  ctx.fillRect(inset, inset, size - inset * 2, (size - inset * 2) * 0.34);
-  ctx.strokeStyle = "rgba(0,0,0,0.75)";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(inset, inset, size - inset * 2, size - inset * 2);
-
-  drawBuildingGlyph(ctx, glyph, size / 2, size * 0.58, size * 0.24, colors.light);
-  return canvas;
-}
 
 function heading(text: string): HTMLElement {
   const element = document.createElement("h2");

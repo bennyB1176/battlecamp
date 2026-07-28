@@ -40,6 +40,7 @@ import {
 } from "./grid.js";
 import { canAfford, debit } from "./resources.js";
 import type { World } from "./world.js";
+import { statsFor } from "./stats.js";
 
 /** Build work one worker contributes per tick. */
 export const BUILD_WORK_PER_TICK = 2;
@@ -380,6 +381,10 @@ function advanceConstruction(world: World, site: Entity): void {
   if (site.construction === 0) {
     site.construction = null;
     site.hp = def.maxHp;
+    // Counted on completion, not on placement: a shell somebody started and
+    // abandoned is not an achievement, and counting it would let the tally run
+    // away from what is actually standing on the map.
+    statsFor(world, site.owner).buildingsBuilt++;
     // A finished building may extend the build radius and change what workers
     // can deliver to, so let the renderer and pathing know.
     world.terrainDirty = true;

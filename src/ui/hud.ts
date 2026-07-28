@@ -34,6 +34,14 @@ import {
 export interface HudAction {
   readonly id: string;
   readonly label: string;
+  /**
+   * Optional picture of the thing this button makes.
+   *
+   * A factory rather than an element, because the panel is described afresh on
+   * every frame and only rebuilt when it changed: handing over a finished
+   * canvas would draw sixty of them a second and throw fifty-nine away.
+   */
+  readonly icon?: () => HTMLElement;
   /** Second line, typically a price. */
   readonly detail?: string;
   readonly disabled?: boolean;
@@ -221,16 +229,28 @@ export function createHud(callbacks: HudCallbacks): Hud {
           if (action.armed) button.classList.add("armed");
           button.disabled = action.disabled ?? false;
 
+          // The icon sits to the left of both lines, so the text block keeps
+          // its own alignment whether or not there is a picture.
+          const text = document.createElement("span");
+          text.className = "action-text";
+
           const label = document.createElement("span");
           label.textContent = action.label;
-          button.appendChild(label);
+          text.appendChild(label);
 
           if (action.detail) {
             const detail = document.createElement("span");
             detail.className = "cost";
             detail.textContent = action.detail;
-            button.appendChild(detail);
+            text.appendChild(detail);
           }
+
+          if (action.icon) {
+            const icon = action.icon();
+            icon.classList.add("action-icon");
+            button.appendChild(icon);
+          }
+          button.appendChild(text);
 
           button.addEventListener("click", action.onSelect);
           return button;

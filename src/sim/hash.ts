@@ -54,6 +54,17 @@ export function hashWorld(world: World): number {
     }
   }
 
+  // The match tally is counted from the same events the sim runs on, so two
+  // runs that disagree about it have already diverged somewhere. Leaving it out
+  // would make the tripwire blind to a whole category of drift.
+  for (const stats of world.stats) {
+    for (const kind of RESOURCE_KINDS) h = mixInt32(h, stats.gathered[kind]);
+    h = mixInt32(h, stats.unitsTrained);
+    h = mixInt32(h, stats.buildingsBuilt);
+    h = mixInt32(h, stats.unitsLost);
+    h = mixInt32(h, stats.buildingsLost);
+  }
+
   // Entities are hashed in list order, which the store guarantees is
   // deterministic. prevX/prevY are deliberately omitted: they are cosmetic
   // interpolation state derived from last tick's position, not simulation truth.

@@ -25,6 +25,7 @@ import { snapGoalToReachable } from "./movement.js";
 import { buildingTiles } from "./entities.js";
 import { queryRadius } from "./spatial.js";
 import type { World } from "./world.js";
+import { statsFor } from "./stats.js";
 
 /**
  * How far past its weapon a unit will step to reach an ordered target before
@@ -221,6 +222,9 @@ function reapDead(world: World): void {
         setBlocked(world.grid, tile.tileX, tile.tileY, false);
       }
       world.terrainDirty = true;
+      statsFor(world, entity.owner).buildingsLost++;
+    } else {
+      statsFor(world, entity.owner).unitsLost++;
     }
 
     removeEntity(world.entities, id);
