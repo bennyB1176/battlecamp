@@ -58,9 +58,20 @@ export function pruneSelection(selection: Selection, world: World): void {
 }
 
 /**
- * Select the single unit under a tap, replacing whatever was selected.
- * Returns false when the tap hit no unit of the player's, so the caller can
+ * Select the single unit under a tap — or let go of it, if it was already the
+ * whole selection.
+ *
+ * Returns false when the tap hit nothing of the player's, so the caller can
  * treat it as a ground tap instead.
+ *
+ * The toggle exists because there was otherwise no way to end up with *nothing*
+ * selected: the only way to clear a selection was to make another one. That
+ * matters more here than in a game with a mouse, because with something
+ * selected a tap on open ground is a move order — so a player who had finished
+ * with a unit had no way to put it down.
+ *
+ * Only when the tapped unit *is* the entire selection, though. Tapping one
+ * soldier out of twelve means "just this one", not "all but this one".
  */
 export function selectAt(
   selection: Selection,
@@ -88,8 +99,9 @@ export function selectAt(
 
   if (!best) return false;
 
+  const wasTheWholeSelection = selection.ids.size === 1 && selection.ids.has(best.id);
   selection.ids.clear();
-  selection.ids.add(best.id);
+  if (!wasTheWholeSelection) selection.ids.add(best.id);
   return true;
 }
 

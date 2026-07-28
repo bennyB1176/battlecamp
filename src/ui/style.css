@@ -107,6 +107,34 @@ body {
   backdrop-filter: blur(6px);
 }
 
+/* The diagnostics readout is the longest thing on the top row and the least
+   often needed, so it hides behind this. A circle keeps it from reading as one
+   more pill of state — it is a control, and the shape says so. */
+.info-toggle {
+  pointer-events: auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+  touch-action: manipulation;
+}
+
+.info-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.info-toggle:active {
+  transform: scale(0.9);
+}
+
 .ctrl {
   pointer-events: auto;
   min-width: var(--control-size);
@@ -180,6 +208,15 @@ body {
   background: #ff5a3c;
 }
 
+/* Panel plus control row as one block at the bottom edge. Without this the
+   HUD's space-between put the panel in the vertical middle of the screen —
+   across the map, and out of thumb reach on a phone. */
+#hud-lower {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 /* Sits just above the control row, only while something is selected. */
 #hud-context {
   pointer-events: auto;
@@ -197,10 +234,48 @@ body {
   display: none;
 }
 
+/* Title and the way out share a row: the × belongs to the panel as a whole,
+   not to any one of the action buttons below it. */
+#context-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 #context-title {
   font-size: 12px;
   opacity: 0.75;
-  margin-bottom: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Deliberately at the far end, away from the actions: this one undoes, and a
+   fat finger must not be able to hit it while reaching for "build". */
+#context-dismiss {
+  pointer-events: auto;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px -4px -4px 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1;
+  opacity: 0.75;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#context-dismiss:active {
+  transform: scale(0.9);
+}
+
+#context-dismiss[hidden] {
+  display: none;
 }
 
 #context-actions {

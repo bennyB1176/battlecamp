@@ -21,6 +21,7 @@ const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["Ein Finger ziehen", "Karte verschieben"],
   ["Zwei Finger", "Zoomen"],
   ["Eigene Einheit antippen", "Auswählen"],
+  ["Nochmal antippen · × · Esc", "Auswahl aufheben"],
   ["⬚ dann ziehen", "Mehrere auswählen"],
   ["Rohstoff antippen (mit Arbeitern)", "Abbauen lassen"],
   ["Eigene Baustelle antippen", "Beim Bau helfen"],
@@ -31,6 +32,8 @@ const GESTURES: ReadonlyArray<readonly [string, string]> = [
   ["Gelände antippen (mit Auswahl)", "Hingehen"],
   ["⏸ oder Leertaste", "Pause — Befehle gehen auch pausiert"],
   ["▶︎ antippen", "Tempo: 1× → 2× → 4× → wieder 1×"],
+  ["⌖ antippen", "Zurück zur eigenen Basis"],
+  ["i antippen", "Technische Anzeige ein- und ausblenden"],
 ];
 
 /** Draw a unit silhouette into a small canvas, exactly as the game draws it. */

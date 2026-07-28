@@ -18,7 +18,15 @@ import { DIFFICULTY_NAMES } from "./ai/bot.js";
 import { BUILDABLE, buildingDef, type BuildingTypeId } from "./content/buildings.js";
 import { unitDef, UnitType } from "./content/units.js";
 import { attachCameraControls, centerOn, createCamera, type Camera, type WorldBox } from "./input/camera.js";
-import { createSelection, pruneSelection, selectAt, selectInBox, selectedEntities } from "./input/selection.js";
+import { homeView } from "./input/home.js";
+import {
+  clearSelection,
+  createSelection,
+  pruneSelection,
+  selectAt,
+  selectInBox,
+  selectedEntities,
+} from "./input/selection.js";
 import { createRenderer, renderFrame, resizeRenderer } from "./render/renderer.js";
 import { canPlace, PlacementError, type PlacementErrorKind } from "./sim/construction.js";
 import type { Command } from "./sim/commands.js";
@@ -144,7 +152,7 @@ function start(): void {
       }
       hud.setSpeed(speed);
     },
-    onCenter: () => centerOn(camera, world.grid.width / 2, world.grid.height / 2),
+    onCenter: () => goHome(),
     onToggleSelectMode: () => {
       selectMode = !selectMode;
       // The two drag modes are mutually exclusive; arming both would make a
@@ -176,6 +184,36 @@ function start(): void {
       hud.setAttackMode(attackMoveArmed);
     },
   });
+
+  /**
+   * Put everything down: close the build menu, disarm attack-move, drop the
+   * selection. One idea, reachable three ways — the panel's ×, the Escape key,
+   * and tapping a lone selected unit again.
+   */
+  function dismissContext(): void {
+    if (buildMenuOpen) {
+      closeBuildMenu();
+      return;
+    }
+    if (attackMoveArmed) {
+      attackMoveArmed = false;
+      hud.setAttackMode(false);
+      return;
+    }
+    clearSelection(selection);
+  }
+
+  /**
+   * Look at my own base.
+   *
+   * Used both for the opening view and for the ⌖ button. It used to be the
+   * middle of the map for both, which on a symmetric layout is the one place
+   * that holds neither base — the game opened on empty grass.
+   */
+  function goHome(): void {
+    const home = homeView(world, LOCAL_PLAYER);
+    centerOn(camera, home.x, home.y);
+  }
 
   function closeBuildMenu(): void {
     buildMenuOpen = false;
@@ -476,7 +514,7 @@ function start(): void {
   window.addEventListener("resize", handleResize);
   window.addEventListener("orientationchange", handleResize);
   handleResize();
-  centerOn(camera, world.grid.width / 2, world.grid.height / 2);
+  goHome();
 
   // Development-only handle for poking at the running game from the console or
   // from a browser-automation smoke test. Stripped from production builds.
@@ -570,7 +608,15 @@ function start(): void {
             : "Niederlage";
       hud.setContext(outcome, context.actions);
     } else {
-      hud.setContext(showNoticeNow ? notice : context.title, context.actions);
+      // The × is offered only when there is genuinely something to put down.
+      // A permanently visible dismiss button that does nothing teaches the
+      // player to ignore it, which is the opposite of what it is for.
+      const dismissable = buildMenuOpen || attackMoveArmed || selection.ids.size > 0;
+      hud.setContext(
+        showNoticeNow ? notice : context.title,
+        context.actions,
+        dismissable ? dismissContext : undefined,
+      );
     }
 
     framesSinceReport++;
