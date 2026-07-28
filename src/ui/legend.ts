@@ -66,12 +66,26 @@ function buildContent(): DocumentFragment {
     heading("Worum es geht"),
     paragraph(
       "Baue eine Basis auf, lass Rohstoffe abbauen, stelle eine Armee auf und schalte den Gegner aus. " +
-        "Besiegt ist, wer keine Gebäude und keine Einheiten mehr hat — solange Arbeiter leben, kann man " +
-        "neu aufbauen.",
+        "Besiegt ist, wer weder Gebäude noch einen Arbeiter mehr hat — solange ein Arbeiter lebt, kann " +
+        "man neu aufbauen, und solange jemand aufbauen kann, läuft das Spiel weiter.",
     ),
     paragraph(
       "Es entscheidet die Zusammensetzung, nicht die Menge: jeder Einheitentyp hat einen Konter. " +
         "Deshalb lohnt es sich, erst zu sehen, was der Gegner baut.",
+    ),
+  );
+
+  fragment.append(
+    heading("Sicht"),
+    paragraph(
+      "Du siehst nur, wohin deine Einheiten und Gebäude schauen. Schwarze Fläche warst du noch nie; " +
+        "abgedunkelte Fläche kennst du — dort weißt du, wie das Gelände aussieht, aber nicht, was " +
+        "gerade darauf steht.",
+    ),
+    paragraph(
+      "Deshalb ist Aufklärung eine eigene Aufgabe: der Späher kämpft schlecht und sieht am weitesten. " +
+        "Wer nicht nachsieht, baut gegen eine Armee, die er nur vermutet. Die Gegner spielen mit " +
+        "derselben Einschränkung — nur die Stufe „schwer\" sieht durch den Nebel.",
     ),
   );
 

@@ -102,6 +102,14 @@ export interface BuildingDef {
    * act of stretching your territory toward something contested.
    */
   readonly buildRadius: number;
+  /**
+   * How far this building sees, in fixed point, measured from its centre.
+   *
+   * A base lights its own yard, and a tower is a *watch*tower: it sees further
+   * than it shoots, so it warns before it fires. Without that a defence line
+   * only ever tells you about an attack by taking part in it.
+   */
+  readonly sight: number;
   /** Whether workers can deliver a load here. */
   readonly acceptsDeliveries: boolean;
   /** Unit types this building can train. */
@@ -137,6 +145,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 400, [Resource.Stone]: 250 },
     buildWork: 400,
     buildRadius: 7,
+    sight: fromTiles(9),
     acceptsDeliveries: true,
     produces: [UnitType.Worker],
     armor: Armor.Building,
@@ -160,6 +169,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 120, [Resource.Stone]: 40 },
     buildWork: 150,
     buildRadius: 4,
+    sight: fromTiles(5),
     acceptsDeliveries: true,
     produces: [],
     armor: Armor.Building,
@@ -176,6 +186,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 180, [Resource.Stone]: 60 },
     buildWork: 220,
     buildRadius: 4,
+    sight: fromTiles(6),
     acceptsDeliveries: false,
     produces: [UnitType.Soldier, UnitType.Grenadier, UnitType.Vehicle],
     armor: Armor.Building,
@@ -194,6 +205,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // A small radius: a tower defends ground you already hold, it does not
     // claim new ground. Otherwise towers become a creeping siege weapon.
     buildRadius: 2,
+    sight: fromTiles(8),
     acceptsDeliveries: false,
     produces: [],
     armor: Armor.Building,
@@ -212,6 +224,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 140, [Resource.Stone]: 60 },
     buildWork: 200,
     buildRadius: 3,
+    sight: fromTiles(5),
     acceptsDeliveries: false,
     produces: [],
     armor: Armor.Building,
@@ -239,6 +252,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 80, [Resource.Stone]: 20 },
     buildWork: 140,
     buildRadius: 3,
+    sight: fromTiles(5),
     acceptsDeliveries: false,
     produces: [],
     armor: Armor.Building,
@@ -257,6 +271,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 100, [Resource.Stone]: 90 },
     buildWork: 210,
     buildRadius: 3,
+    sight: fromTiles(6),
     acceptsDeliveries: false,
     produces: [],
     armor: Armor.Building,
@@ -273,6 +288,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     cost: { [Resource.Wood]: 120, [Resource.Stone]: 120 },
     buildWork: 240,
     buildRadius: 3,
+    sight: fromTiles(5),
     acceptsDeliveries: false,
     produces: [],
     armor: Armor.Building,

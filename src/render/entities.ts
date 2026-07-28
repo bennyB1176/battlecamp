@@ -39,10 +39,12 @@ import {
   unitDefOf,
   type Entity,
   type EntityId,
+  type PlayerId,
 } from "../sim/entities.js";
 import { toTiles } from "../sim/fixed.js";
 import { Resource } from "../sim/resources.js";
 import type { World } from "../sim/world.js";
+import { visibleTo } from "../sim/vision.js";
 
 /** Below this zoom, units are plain dots — outlines and glyphs only muddy them. */
 const DETAIL_MIN_TILE_SIZE = 12;
@@ -79,6 +81,7 @@ export function drawEntities(
   camera: Camera,
   selection: Selection,
   alpha: number,
+  localPlayer: PlayerId,
 ): void {
   const bounds = visibleTileBounds(camera);
   const margin = 3;
@@ -88,6 +91,10 @@ export function drawEntities(
   for (const pass of [true, false]) {
     for (const entity of world.entities.list) {
       if (isBuilding(entity) !== pass) continue;
+      // Skipped rather than dimmed: an enemy the player cannot see must not be
+      // on screen at all. Drawing it faintly under the fog would make the fog
+      // decorative, which is worse than having none.
+      if (!visibleTo(world, localPlayer, entity)) continue;
 
       const worldX = toTiles(entity.prevX + (entity.x - entity.prevX) * alpha);
       const worldY = toTiles(entity.prevY + (entity.y - entity.prevY) * alpha);

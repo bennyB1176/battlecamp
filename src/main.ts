@@ -37,6 +37,7 @@ import { weaponOf } from "./sim/combat.js";
 import { fromTiles } from "./sim/fixed.js";
 import { terrainAt } from "./sim/grid.js";
 import { canAfford, resourceOfTerrain } from "./sim/resources.js";
+import { visibleTo } from "./sim/vision.js";
 import { createWorld, MS_PER_TICK, TICKS_PER_SECOND, tickWorld, type World } from "./sim/world.js";
 import { formatCost } from "./ui/legend-data.js";
 import { createHud, type HudAction } from "./ui/hud.js";
@@ -106,7 +107,7 @@ function start(): void {
   const renderer = createRenderer(canvas, world);
 
   // Until the skirmish setup screen exists, the difficulty comes from the URL:
-  // ?gegner=leicht | normal | schwer. Anything else means Normal. It is not a
+  // ?gegner=leicht | normal | schwer. Anything else means Leicht. It is not a
   // menu, but it is one link away on a phone, which is what matters today.
   const difficulty = difficultyFromName(new URLSearchParams(window.location.search).get("gegner"));
   const opponents = createOpponents(world, LOCAL_PLAYER, difficulty);
@@ -251,6 +252,10 @@ function start(): void {
 
     for (const entity of world.entities.list) {
       if (owner !== null && entity.owner !== owner) continue;
+      // Nothing in the fog can be tapped. Otherwise a player could order an
+      // attack on a unit that is not on their screen — which is either a
+      // mystery or, once someone notices, a way to read the fog by poking it.
+      if (!visibleTo(world, LOCAL_PLAYER, entity)) continue;
 
       if (isBuilding(entity)) {
         const def = buildingDefOf(entity);

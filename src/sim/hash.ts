@@ -65,6 +65,14 @@ export function hashWorld(world: World): number {
     h = mixInt32(h, stats.buildingsLost);
   }
 
+  // Explored ground only. What is *visible* right now is recomputed every tick
+  // from entity positions, which are hashed a few lines down — hashing it too
+  // would be paying twice for the same fact. Where a player has been is not
+  // derivable from where they are, so that half is real state.
+  for (const vision of world.vision) {
+    for (let i = 0; i < vision.explored.length; i++) h = mix(h, vision.explored[i]!);
+  }
+
   // Entities are hashed in list order, which the store guarantees is
   // deterministic. prevX/prevY are deliberately omitted: they are cosmetic
   // interpolation state derived from last tick's position, not simulation truth.
