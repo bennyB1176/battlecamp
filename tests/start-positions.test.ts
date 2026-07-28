@@ -21,6 +21,7 @@ import { isPassable, terrainAt } from "../src/sim/grid.js";
 import { RAW_KINDS, resourceOfTerrain, RESOURCE_NAMES } from "../src/sim/resources.js";
 import { computeFlowField, isReachable } from "../src/sim/pathing.js";
 import { createWorld, type World } from "../src/sim/world.js";
+import { BIOME_LIST, biomeDef } from "../src/content/biomes.js";
 import { MAP_SIZES } from "../src/ui/match-settings.js";
 
 // Seeds 1 to 8 are the ones the headless match runner uses, so a map that
@@ -277,4 +278,52 @@ describe("the offered map sizes", () => {
       }
     }
   });
+});
+
+/**
+ * Every biome, on every offered size.
+ *
+ * The biome table moves the water line, the rock ceiling and the amount of open
+ * ground, and the opening generator has to cope with all of it. A desert that
+ * cannot seat a headquarters, or badlands whose lava strands one player in a
+ * pocket, would ship as a match that opens broken — and it is exactly the kind
+ * of failure no other test in the suite would see.
+ */
+describe("every biome opens a playable match", () => {
+  for (const biome of BIOME_LIST) {
+    const name = biomeDef(biome).name;
+
+    it.each(SEEDS)(`seats both players on ${name} with seed %i`, (seed) => {
+      for (const size of MAP_SIZES) {
+        const world = createWorld({ seed, width: size.tiles, height: size.tiles, biome });
+
+        for (const player of world.players) {
+          const hq = headquartersOf(world, player.id);
+          expect(hq, `${name} ${size.tiles}: player ${player.id} got no headquarters`).toBeDefined();
+          expect(
+            unitsOf(world, player.id).length,
+            `${name} ${size.tiles}: player ${player.id} got no units`,
+          ).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it.each(SEEDS)(`lets the two sides reach each other on ${name} with seed %i`, (seed) => {
+      // The failure this catches is silent and total: two bases in separate
+      // pockets means twenty minutes of two economies humming and no match.
+      const world = createWorld({ seed, width: 64, height: 64, biome });
+      const [mine, theirs] = world.players.map((player) => headquartersOf(world, player.id)!);
+
+      const from = standsOn(world, unitsOf(world, 0)[0]!);
+      const field = computeFlowField(world.grid, from.x, from.y);
+      const target = standsOn(world, unitsOf(world, 1)[0]!);
+
+      expect(
+        isReachable(field, target.x, target.y),
+        `${name} seed ${seed}: the two openings are on separate ground`,
+      ).toBe(true);
+      expect(mine).toBeDefined();
+      expect(theirs).toBeDefined();
+    });
+  }
 });

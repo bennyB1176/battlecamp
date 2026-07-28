@@ -216,6 +216,33 @@ function drawTileDetail(
       ctx.fillRect(px + size * 0.54, py + size * 0.8, size * 0.32, Math.max(1, size * 0.07));
       break;
     }
+    case Terrain.Snow: {
+      // Sparse drifts rather than sparkle: snow is the tundra's *open ground*,
+      // so it has to stay quiet enough to build a base on and still read as
+      // something other than pale grass.
+      if (hash(tileX, tileY, 3) > 0.5) return;
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      const driftX = px + hash(tileX, tileY, 4) * size * 0.5 + size * 0.15;
+      const driftY = py + hash(tileX, tileY, 5) * size * 0.5 + size * 0.2;
+      ctx.fillRect(driftX, driftY, size * 0.3, Math.max(1, size * 0.09));
+      ctx.fillStyle = "rgba(120,140,170,0.22)";
+      ctx.fillRect(driftX, driftY + Math.max(1, size * 0.09), size * 0.3, Math.max(1, size * 0.06));
+      break;
+    }
+    case Terrain.Lava: {
+      // Bright cracks over a dark crust. It has to be unmistakable at a glance:
+      // lava blocks movement exactly like water, and a player who reads it as
+      // decoration will walk an army into a dead end.
+      ctx.fillStyle = "rgba(255, 176, 60, 0.55)";
+      for (let crack = 0; crack < 2; crack++) {
+        const cx = px + hash(tileX, tileY, 11 + crack) * size * 0.6 + size * 0.1;
+        const cy = py + hash(tileX, tileY, 21 + crack) * size * 0.6 + size * 0.1;
+        ctx.fillRect(cx, cy, size * 0.3, Math.max(1, size * 0.11));
+      }
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(px, py + size * 0.72, size, size * 0.28);
+      break;
+    }
     default:
       break;
   }

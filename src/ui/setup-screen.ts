@@ -15,6 +15,7 @@
  */
 
 import { DIFFICULTY_NAMES, Difficulty, type DifficultyId } from "../ai/bot.js";
+import { BIOME_LIST, biomeDef, type BiomeId } from "../content/biomes.js";
 import {
   MAP_SIZES,
   randomSeed,
@@ -119,7 +120,20 @@ export function showSetupScreen(initial: MatchSettings): Promise<MatchSettings> 
       ),
     );
 
-    panel.append(group("Karte"));
+    panel.append(group("Gelände"));
+    panel.append(
+      choices<BiomeId>(
+        BIOME_LIST,
+        (value) => biomeDef(value).name,
+        (value) => biomeDef(value).blurb,
+        chosen.biome,
+        (value) => {
+          chosen = { ...chosen, biome: value };
+        },
+      ),
+    );
+
+    panel.append(group("Kartengröße"));
     panel.append(
       choices(
         MAP_SIZES,

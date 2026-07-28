@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Difficulty } from "../src/ai/bot.js";
+import { Biome, BIOME_LIST } from "../src/content/biomes.js";
 import {
   DEFAULT_SETTINGS,
   MAP_SIZES,
@@ -30,8 +31,13 @@ function query(text: string): URLSearchParams {
 
 describe("reading settings from a link", () => {
   it("reads a full set", () => {
-    const settings = parseSettings(query("seed=4711&gegner=schwer&groesse=80"));
-    expect(settings).toEqual({ seed: 4711, difficulty: Difficulty.Hard, size: 80 });
+    const settings = parseSettings(query("seed=4711&gegner=schwer&groesse=80&gelaende=wueste"));
+    expect(settings).toEqual({
+      seed: 4711,
+      difficulty: Difficulty.Hard,
+      size: 80,
+      biome: Biome.Desert,
+    });
   });
 
   it("still reads the plain difficulty link that used to be the only setting", () => {
@@ -80,19 +86,34 @@ describe("reading settings from a link", () => {
 
 describe("writing settings back into a link", () => {
   it("round-trips every setting", () => {
-    const settings: MatchSettings = { seed: 123456, difficulty: Difficulty.Normal, size: 48 };
+    const settings: MatchSettings = {
+      seed: 123456,
+      difficulty: Difficulty.Normal,
+      size: 48,
+      biome: Biome.Tundra,
+    };
     expect(parseSettings(query(settingsToQuery(settings)))).toEqual(settings);
   });
 
   it("round-trips every offered map size", () => {
     for (const size of MAP_SIZES) {
-      const settings: MatchSettings = { seed: 7, difficulty: Difficulty.Easy, size: size.tiles };
+      const settings: MatchSettings = {
+        seed: 7,
+        difficulty: Difficulty.Easy,
+        size: size.tiles,
+        biome: Biome.Grassland,
+      };
       expect(parseSettings(query(settingsToQuery(settings))).size).toBe(size.tiles);
     }
   });
 
   it("writes the seed in a form somebody can read out loud", () => {
-    const text = settingsToQuery({ seed: 481203, difficulty: Difficulty.Easy, size: 64 });
+    const text = settingsToQuery({
+      seed: 481203,
+      difficulty: Difficulty.Easy,
+      size: 64,
+      biome: Biome.Badlands,
+    });
     expect(text).toContain("seed=481203");
   });
 });
@@ -108,6 +129,25 @@ describe("rolling a seed", () => {
   it("does not hand out the same map every time", () => {
     const seen = new Set(Array.from({ length: 50 }, () => randomSeed()));
     expect(seen.size).toBeGreaterThan(40);
+  });
+});
+
+describe("the terrain setting", () => {
+  it("round-trips every biome", () => {
+    for (const biome of BIOME_LIST) {
+      const settings: MatchSettings = { seed: 9, difficulty: Difficulty.Easy, size: 64, biome };
+      expect(parseSettings(query(settingsToQuery(settings))).biome).toBe(biome);
+    }
+  });
+
+  it("writes a slug a person can read, not a number", () => {
+    const text = settingsToQuery({ seed: 9, difficulty: Difficulty.Easy, size: 64, biome: Biome.Tundra });
+    expect(text).toContain("gelaende=tundra");
+  });
+
+  it("falls back to grassland for a terrain it does not know", () => {
+    expect(parseSettings(query("gelaende=dschungel")).biome).toBe(Biome.Grassland);
+    expect(parseSettings(query("")).biome).toBe(Biome.Grassland);
   });
 });
 

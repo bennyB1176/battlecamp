@@ -12,6 +12,7 @@
  * balance matches from M4) and in a worker or on a server later on.
  */
 
+import { Biome, biomeDef, type BiomeId } from "../content/biomes.js";
 import { BuildingType, buildingDef } from "../content/buildings.js";
 import { UnitType } from "../content/units.js";
 import { applyCommand, type Command } from "./commands.js";
@@ -84,6 +85,8 @@ export interface WorldConfig {
    * that want an empty world pass 0.
    */
   readonly startingUnits: number;
+  /** Which kind of place this is. Decides terrain mix and resource density. */
+  readonly biome: BiomeId;
 }
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
@@ -91,6 +94,7 @@ export const DEFAULT_WORLD_CONFIG: WorldConfig = {
   width: 64,
   height: 64,
   startingUnits: 12,
+  biome: Biome.Grassland,
 };
 
 /**
@@ -153,12 +157,12 @@ export interface World {
 }
 
 export function createWorld(config: Partial<WorldConfig> = {}): World {
-  const { seed, width, height, startingUnits } = { ...DEFAULT_WORLD_CONFIG, ...config };
+  const { seed, width, height, startingUnits, biome } = { ...DEFAULT_WORLD_CONFIG, ...config };
 
   // Map generation gets its own generator so that later changes to how many
   // random numbers the runtime sim draws cannot alter the map for a given seed.
   const mapRng = createRng(seed);
-  const grid = generateMap(mapRng, width, height);
+  const grid = generateMap(mapRng, width, height, biomeDef(biome));
 
   const world: World = {
     seed,

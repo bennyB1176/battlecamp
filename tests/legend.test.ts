@@ -11,11 +11,13 @@ import { describe, expect, it } from "vitest";
 
 import { BUILDING_DEFS, buildingDef, BuildingType } from "../src/content/buildings.js";
 import { UNIT_DEFS, UnitType, unitDef } from "../src/content/units.js";
+import { Terrain, TERRAIN_INFO } from "../src/sim/grid.js";
 import {
   buildingEntries,
   counterTriangle,
   formatCost,
   resourceEntries,
+  terrainEntries,
   unitEntries,
 } from "../src/ui/legend-data.js";
 import {
@@ -209,5 +211,32 @@ describe("the resource list", () => {
     for (const entry of resourceEntries()) {
       expect(Object.values(RESOURCE_COLORS)).toContain(entry.color);
     }
+  });
+});
+
+describe("terrain entries", () => {
+  it("lists every terrain the game has, with no hand-maintained list", () => {
+    // Snow and lava arrived with the biomes. A hand-written list would have
+    // been two entries short that day and nobody would have noticed.
+    expect(terrainEntries()).toHaveLength(Object.keys(TERRAIN_INFO).length);
+  });
+
+  it("takes name and colour straight from the terrain table", () => {
+    for (const entry of terrainEntries()) {
+      const info = Object.values(TERRAIN_INFO).find((candidate) => candidate.name === entry.name);
+      expect(info, `${entry.name} is not in the terrain table`).toBeDefined();
+      expect(entry.color).toBe(info!.color);
+    }
+  });
+
+  it("says plainly what blocks and what only slows", () => {
+    const byName = new Map(terrainEntries().map((entry) => [entry.name, entry.effect]));
+
+    expect(byName.get(TERRAIN_INFO[Terrain.Lava].name)).toContain("unpassierbar");
+    expect(byName.get(TERRAIN_INFO[Terrain.Water].name)).toContain("unpassierbar");
+    // Snow is the tundra's building ground, so it has to read as buildable —
+    // a player who thinks it is a wall will never settle the map.
+    expect(byName.get(TERRAIN_INFO[Terrain.Snow].name)).toContain("bebaubar");
+    expect(byName.get(TERRAIN_INFO[Terrain.Snow].name)).toContain("langsamer");
   });
 });

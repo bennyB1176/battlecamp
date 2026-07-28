@@ -14,6 +14,10 @@ export const Terrain = {
   Forest: 4,
   Ore: 5,
   Stone: 6,
+  /** Frozen ground. Walkable and buildable, but slow going. */
+  Snow: 7,
+  /** Molten rock. A wall you can see across — the badlands' answer to water. */
+  Lava: 8,
 } as const;
 
 export type TerrainType = (typeof Terrain)[keyof typeof Terrain];
@@ -41,6 +45,12 @@ export const TERRAIN_INFO: Readonly<Record<TerrainType, TerrainInfo>> = {
   [Terrain.Forest]: { name: "Wald", passable: true, buildable: false, moveCost: 160, color: "#2f4a26" },
   [Terrain.Ore]: { name: "Erzader", passable: true, buildable: false, moveCost: 130, color: "#8a6a3f" },
   [Terrain.Stone]: { name: "Steinbruch", passable: true, buildable: false, moveCost: 130, color: "#7d7a72" },
+  // Snow is grass with a tax: everything works, everything is slower. That is
+  // the whole character of the tundra — no hard walls, just less of everything.
+  [Terrain.Snow]: { name: "Schnee", passable: true, buildable: true, moveCost: 145, color: "#c3ccd6" },
+  // Lava behaves exactly like water and reads nothing like it, which is the
+  // point: the badlands need a barrier that says "this map is hostile".
+  [Terrain.Lava]: { name: "Lava", passable: false, buildable: false, moveCost: 0, color: "#83321c" },
 };
 
 export interface TileGrid {

@@ -107,11 +107,11 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    // Moved by the opening generator: "within reach of the start" is now
-    // measured as the crow flies rather than as a square, so the seams it
-    // guarantees are genuinely within walking distance instead of up to
-    // seventeen tiles away at the corners.
-    expect(finalHash).toBe("a8d8255d");
+    // Moved by biomes: resource seams now land only on the biome's own open
+    // ground rather than on "grass or sand". Grassland keeps every threshold it
+    // was balanced at, so the difference on the default map is the handful of
+    // seams that used to be scattered onto its beaches.
+    expect(finalHash).toBe("851a2a05");
   });
 });
 
