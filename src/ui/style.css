@@ -659,3 +659,65 @@ body {
     margin-right: 3px;
   }
 }
+
+/* ---- Minimap ----------------------------------------------------------- */
+
+/* Top right, under the status row. Absolutely positioned rather than part of
+   the HUD's flex column: it is a fixed-size square that must not push the
+   status bar around or take a share of the row. */
+#minimap-panel {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 44px);
+  right: calc(env(safe-area-inset-right, 0px) + 10px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* A brighter edge than the other panels get, because at the start of a match
+   the minimap is almost entirely unexplored black — without a visible frame it
+   reads as a hole in the map rather than as a map of its own. */
+#minimap-slot {
+  pointer-events: auto;
+  line-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b0e13;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+#minimap-panel.collapsed #minimap-slot {
+  display: none;
+}
+
+#minimap {
+  display: block;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/* Deliberately small and above the map rather than on it: the minimap itself
+   is a jump target, so anything overlapping it would swallow taps meant for
+   the map. */
+#minimap-toggle {
+  pointer-events: auto;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  touch-action: manipulation;
+}
+
+#minimap-toggle:active {
+  transform: scale(0.9);
+}

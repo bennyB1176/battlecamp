@@ -38,6 +38,17 @@
         <div class="pill" id="stats" hidden>–</div>
       </div>
 
+      <!-- Overview map. Filled by src/render/minimap.ts; the wrapper exists so
+           the canvas can be swapped without the layout knowing. Tapping the
+           header collapses it — on a phone the corner it occupies is real
+           estate, and not every player wants it there all the time. -->
+      <div id="minimap-panel">
+        <button id="minimap-toggle" aria-label="Übersichtskarte ausblenden" aria-expanded="true">
+          <span id="minimap-caret">▾</span>
+        </button>
+        <div id="minimap-slot"></div>
+      </div>
+
       <!-- Panel and controls travel together, hard against the bottom edge:
            on a phone that is the half of the screen a thumb can actually
            reach, and the panel is where the way out of a selection lives. -->
