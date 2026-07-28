@@ -56,6 +56,7 @@ import {
   type ResourceKind,
 } from "../sim/resources.js";
 import { createRng, nextInt, type Rng } from "../sim/rng.js";
+import { visibleTo } from "../sim/vision.js";
 import type { World } from "../sim/world.js";
 
 export const Difficulty = {
@@ -85,6 +86,15 @@ export interface BotProfile {
   readonly usesCounters: boolean;
   /** Whether it pulls its army home when its base is attacked. */
   readonly defendsBase: boolean;
+  /**
+   * Whether it may read the map through the fog.
+   *
+   * The only thing any setting is allowed to cheat at, and only the hardest
+   * one does. Everything else — reaction time, economy, counters, defence — is
+   * something a human could do too, which is what keeps the bot usable as a
+   * balance instrument. A bot with free resources measures nothing.
+   */
+  readonly seesThroughFog: boolean;
 }
 
 /**
@@ -107,6 +117,7 @@ export const PROFILES: Readonly<Record<DifficultyId, BotProfile>> = {
     buildsTowers: false,
     usesCounters: false,
     defendsBase: false,
+    seesThroughFog: false,
   },
   [Difficulty.Normal]: {
     thinkInterval: 15,
@@ -115,6 +126,7 @@ export const PROFILES: Readonly<Record<DifficultyId, BotProfile>> = {
     buildsTowers: true,
     usesCounters: false,
     defendsBase: true,
+    seesThroughFog: false,
   },
   // Reacts within half a second, out-produces you, defends what it has, and
   // builds the answer to whatever you happen to have made.
@@ -125,6 +137,7 @@ export const PROFILES: Readonly<Record<DifficultyId, BotProfile>> = {
     buildsTowers: true,
     usesCounters: true,
     defendsBase: true,
+    seesThroughFog: true,
   },
 };
 
@@ -151,6 +164,15 @@ export interface Bot {
   readonly stalledSites: Set<EntityId>;
   /** Where its workers can walk, and what that answer was computed against. */
   reach: ReachCache | null;
+  /**
+   * Where something of the enemy's was last spotted, in fixed point.
+   *
+   * The bot's whole memory of the enemy, and it is enough: an army marching at
+   * the last place it saw something is doing what a person does. Null until it
+   * has seen anything at all, which is when the blind guess below takes over.
+   */
+  lastEnemySeenX: number | null;
+  lastEnemySeenY: number | null;
 }
 
 /** Ticks a site may sit at the same amount of work before it is written off. */
@@ -198,6 +220,8 @@ export function createBot(playerId: PlayerId, difficulty: DifficultyId, seed: nu
     siteWatch: new Map(),
     stalledSites: new Set(),
     reach: null,
+    lastEnemySeenX: null,
+    lastEnemySeenY: null,
   };
 }
 
@@ -523,7 +547,7 @@ function runMilitary(
   // army is out on the map is how a bot loses a game it was winning.
   if (bot.profile.defendsBase) {
     const home = buildings[0];
-    const threat = home ? nearestEnemyNear(world, bot.playerId, home, 14) : null;
+    const threat = home ? nearestEnemyNear(world, bot, home, 14) : null;
     if (threat && home) {
       commands.push({
         type: "attack-move",
@@ -544,8 +568,33 @@ function runMilitary(
   // headquarters for twelve minutes while the barracks next door keeps working.
   const current =
     bot.attackTargetId === null ? undefined : getEntity(world.entities, bot.attackTargetId);
-  const target = current ?? enemyTarget(world, bot.playerId);
-  if (!target) return;
+  const target = current ?? enemyTarget(world, bot);
+
+  if (!target) {
+    // Nothing in sight. Walk at the best guess instead of standing still — an
+    // army that waits for certainty is an army that never leaves home.
+    const guess = blindMarchTarget(world, bot, buildings[0]);
+    if (!guess) return;
+    if (bot.committed && marchingFraction(fighters) * 2 >= fighters.length) return;
+
+    commands.push({
+      type: "attack-move",
+      playerId: bot.playerId,
+      entityIds: fighters.map((entity) => entity.id),
+      targetX: guess.x,
+      targetY: guess.y,
+    });
+    bot.committed = true;
+    // No entity to hold on to, so the next think re-evaluates from scratch and
+    // switches to a real target the moment one is spotted.
+    bot.attackTargetId = null;
+    return;
+  }
+
+  // Remembered even by a bot that can see through the fog: it costs nothing and
+  // keeps the two paths behaving the same way once a target dies.
+  bot.lastEnemySeenX = target.x;
+  bot.lastEnemySeenY = target.y;
 
   // Already on the way — re-issuing every think would reset their pathing and
   // leave the army shuffling in place.
@@ -555,7 +604,7 @@ function runMilitary(
   // an army that stopped a couple of tiles short of the enemy base needs telling
   // again. With `some`, a single straggler still walking kept seventy arrived
   // soldiers standing politely beside an intact headquarters.
-  const marching = fighters.filter((entity) => entity.attackMoveX !== null).length;
+  const marching = marchingFraction(fighters);
   if (bot.committed && bot.attackTargetId === target.id && marching * 2 >= fighters.length) {
     return;
   }
@@ -569,6 +618,19 @@ function runMilitary(
   });
   bot.committed = true;
   bot.attackTargetId = target.id;
+}
+
+/**
+ * How many of them are still walking.
+ *
+ * "On the way" has to mean most of them, not one of them: attack-move clears
+ * itself on arrival and an idle unit only shoots what is already in weapon
+ * range, so an army that stopped a couple of tiles short needs telling again.
+ * With `some`, a single straggler kept seventy arrived soldiers standing
+ * politely beside an intact headquarters.
+ */
+function marchingFraction(fighters: readonly Entity[]): number {
+  return fighters.filter((entity) => entity.attackMoveX !== null).length;
 }
 
 /**
@@ -608,6 +670,11 @@ function chooseUnitType(bot: Bot, world: World, player: Player): UnitTypeId | nu
     let score = 0;
     for (const entity of world.entities.list) {
       if (entity.owner === bot.playerId) continue;
+      // Only what it has actually seen. Countering an army nobody has laid eyes
+      // on is the most valuable thing a bot could cheat at, and the least
+      // visible from the outside: it just always happens to build the right
+      // thing, and the player never learns why they keep losing.
+      if (!canSee(world, bot, entity)) continue;
       const armor = isBuilding(entity) ? 3 : unitDef(entity.typeId as UnitTypeId).armor;
       score += DAMAGE_MULTIPLIERS[weapon.damageType][armor as never] ?? 0;
     }
@@ -750,13 +817,26 @@ function hasReachableEdge(
   return false;
 }
 
+/**
+ * May this bot act on that entity?
+ *
+ * The single gate every "look at the enemy" question in this file goes
+ * through, so there is exactly one place where honesty about the fog is
+ * decided rather than one per query.
+ */
+function canSee(world: World, bot: Bot, entity: Entity): boolean {
+  if (bot.profile.seesThroughFog) return true;
+  return visibleTo(world, bot.playerId, entity);
+}
+
 /** The nearest enemy within a radius of one of our buildings, if any. */
 function nearestEnemyNear(
   world: World,
-  playerId: PlayerId,
+  bot: Bot,
   around: Entity,
   radiusTiles: number,
 ): Entity | null {
+  const playerId = bot.playerId;
   const radius = radiusTiles * 256;
   let best: Entity | null = null;
   let bestDistanceSq = radius * radius;
@@ -764,6 +844,7 @@ function nearestEnemyNear(
   for (const entity of world.entities.list) {
     if (entity.owner === playerId) continue;
     if (!isUnit(entity)) continue;
+    if (!canSee(world, bot, entity)) continue;
 
     const separationSq = distSq(entity.x, entity.y, around.x, around.y);
     if (separationSq <= bestDistanceSq) {
@@ -776,15 +857,44 @@ function nearestEnemyNear(
 }
 
 /** What to send an attack at: the enemy's buildings first, then whatever is left. */
-function enemyTarget(world: World, playerId: PlayerId): Entity | null {
+function enemyTarget(world: World, bot: Bot): Entity | null {
   let fallback: Entity | null = null;
 
   for (const entity of world.entities.list) {
-    if (entity.owner === playerId) continue;
+    if (entity.owner === bot.playerId) continue;
+    if (!canSee(world, bot, entity)) continue;
     // Buildings win: killing production ends a game, killing a patrol does not.
     if (isBuilding(entity)) return entity;
     if (!fallback) fallback = entity;
   }
 
   return fallback;
+}
+
+/**
+ * Where to march when nothing of the enemy's is in sight.
+ *
+ * An honest bot that has never seen the enemy still has to go somewhere, or it
+ * stockpiles an army forever and a match against Leicht never ends. Two
+ * guesses, in order of how much they are worth:
+ *
+ * 1. **The last place it saw something.** Ordinary memory, and the same thing
+ *    a person does.
+ * 2. **The far side of the map.** Starting positions are placed
+ *    rotationally, and anyone who has played two matches knows it — this is
+ *    inference from the rules, not a look at the answer.
+ *
+ * Either way the army walks with its eyes open: attack-move plus unit sight is
+ * scouting, and the moment it spots something real the target above takes over.
+ */
+function blindMarchTarget(world: World, bot: Bot, home: Entity | undefined): { x: number; y: number } | null {
+  if (bot.lastEnemySeenX !== null && bot.lastEnemySeenY !== null) {
+    return { x: bot.lastEnemySeenX, y: bot.lastEnemySeenY };
+  }
+  if (!home) return null;
+
+  // Mirrored through the centre of the map.
+  const centreX = (world.grid.width * 256) / 2;
+  const centreY = (world.grid.height * 256) / 2;
+  return { x: centreX * 2 - home.x, y: centreY * 2 - home.y };
 }

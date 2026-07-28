@@ -107,9 +107,11 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    // Moved because the match tally is now part of the world and part of this
-    // hash — every side's gathered, trained, built and lost counters included.
-    expect(finalHash).toBe("c1aa2dcf");
+    // Moved twice in one milestone: first because the match tally became part
+    // of the world, then because fog of war did. Explored ground is hashed —
+    // where a player has been is history, not something recomputable from where
+    // they stand now.
+    expect(finalHash).toBe("3720a049");
   });
 });
 

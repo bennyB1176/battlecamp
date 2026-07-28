@@ -56,6 +56,7 @@ import {
   type ResourceKind,
 } from "./resources.js";
 import { createStats, type MatchStats } from "./stats.js";
+import { createVision, updateVision, type PlayerVision } from "./vision.js";
 import { updateVictory } from "./victory.js";
 import { createRng, type Rng } from "./rng.js";
 import { createSpatialHash, type SpatialHash } from "./spatial.js";
@@ -120,6 +121,14 @@ export interface World {
    * that only the result screen asks.
    */
   readonly stats: MatchStats[];
+  /**
+   * Fog of war, one entry per player and indexed by player id.
+   *
+   * In the world rather than beside the renderer because the bots read it: an
+   * opponent that plays off the true state of the map while the player plays
+   * off a lit patch of it is not a difficulty setting, it is a different game.
+   */
+  readonly vision: PlayerVision[];
   readonly entities: EntityStore;
   /** Shared flow fields, keyed by goal tile. Invalidated when terrain changes. */
   readonly fields: FlowFieldCache;
@@ -164,6 +173,7 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
       createPlayer(1, STARTING_STOCK),
     ],
     stats: [createStats(), createStats()],
+    vision: [createVision(width, height), createVision(width, height)],
     entities: createEntityStore(),
     // Sized for how many *distinct* goals exist at once, which is what actually
     // drives the cache. Every gathering worker walks to its own deposit tile, so
@@ -187,6 +197,11 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
   stockDeposits(world);
 
   if (startingUnits > 0) spawnStartingUnits(world, startingUnits);
+
+  // Before anyone gets to look at the world. Without it the first frame draws
+  // an entirely black map, and a bot asked for its opening move on tick zero
+  // would be told, truthfully, that it cannot even see its own front yard.
+  updateVision(world);
 
   return world;
 }
@@ -562,6 +577,10 @@ export function tickWorld(world: World, commands: readonly Command[] = []): void
   // what movement leaves behind.
   updateCombat(world);
   updateMovement(world.grid, world.entities.list, world.fields, world.spatial);
+  // After movement, so what is drawn this frame matches where things ended up.
+  // Before victory, so a bot deciding it has won is deciding from the same view
+  // of the map the renderer is about to show.
+  updateVision(world);
   updateVictory(world);
   updateMarkers(world);
 

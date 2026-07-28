@@ -24,6 +24,7 @@ import {
   drawSelectionBox,
   pruneRenderState,
 } from "./entities.js";
+import { createFogCache, drawFog, type FogCache } from "./fog.js";
 import { createTerrainCache, drawTerrain, type TerrainCache } from "./terrain.js";
 
 /** Below this zoom the tile grid becomes visual noise, so we stop drawing it. */
@@ -33,6 +34,7 @@ export interface Renderer {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
   readonly terrain: TerrainCache;
+  readonly fog: FogCache;
   /** The world's terrain version this renderer last drew. */
   terrainVersion: number;
   /** Milliseconds the last frame spent drawing, for the debug overlay. */
@@ -47,6 +49,7 @@ export function createRenderer(canvas: HTMLCanvasElement, world: World): Rendere
     canvas,
     ctx,
     terrain: createTerrainCache(world.grid),
+    fog: createFogCache(world.grid.width, world.grid.height),
     terrainVersion: world.terrainVersion,
     lastFrameMs: 0,
   };
@@ -121,7 +124,10 @@ export function renderFrame(renderer: Renderer, world: World, camera: Camera, in
   drawMarkers(ctx, world, camera, input.alpha);
   drawPendingCommands(ctx, camera, input.pending);
   drawOrders(ctx, world, camera, input.selection);
-  drawEntities(ctx, world, camera, input.selection, input.alpha);
+  drawEntities(ctx, world, camera, input.selection, input.alpha, input.localPlayer);
+  // Over the map and everything on it, under the selection box: the box is a
+  // gesture in progress, not part of the world, and must never be fogged out.
+  drawFog(ctx, renderer.fog, world, camera, input.localPlayer);
   drawSelectionBox(ctx, camera, input.selectionBox);
   pruneRenderState(world);
 
