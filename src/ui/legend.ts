@@ -13,7 +13,7 @@
  */
 
 import { playerColors } from "../content/players.js";
-import { traceUnitShape } from "../render/entities.js";
+import { drawBuildingGlyph, traceUnitShape } from "../render/entities.js";
 import { UnitType } from "../content/units.js";
 import { buildingEntries, counterTriangle, resourceEntries, unitEntries } from "./legend-data.js";
 
@@ -67,17 +67,39 @@ function unitIcon(shape: string, playerId: number): HTMLCanvasElement {
 }
 
 /** A small square in the player's colours, standing in for a building. */
-function buildingIcon(playerId: number): HTMLElement {
-  const colors = playerColors(playerId);
-  const box = document.createElement("span");
-  box.className = "legend-building-icon";
-  box.style.background = colors.body;
-  box.style.borderColor = colors.dark;
+/**
+ * A building's icon, drawn with the renderer's own glyph code.
+ *
+ * The same rule the unit icons follow: one piece of code decides what a smelter
+ * looks like. A hand-drawn copy here would be a second answer to that question,
+ * and the two would part ways the first time a glyph was retuned.
+ */
+function buildingIcon(playerId: number, glyph: string): HTMLCanvasElement {
+  const size = 34;
+  const canvas = document.createElement("canvas");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
 
-  const roof = document.createElement("span");
-  roof.style.background = colors.dark;
-  box.appendChild(roof);
-  return box;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  ctx.scale(dpr, dpr);
+  const colors = playerColors(playerId);
+  const inset = size * 0.12;
+
+  ctx.fillStyle = colors.body;
+  ctx.fillRect(inset, inset, size - inset * 2, size - inset * 2);
+  ctx.fillStyle = colors.dark;
+  ctx.fillRect(inset, inset, size - inset * 2, (size - inset * 2) * 0.34);
+  ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(inset, inset, size - inset * 2, size - inset * 2);
+
+  drawBuildingGlyph(ctx, glyph, size / 2, size * 0.58, size * 0.24, colors.light);
+  return canvas;
 }
 
 function heading(text: string): HTMLElement {
@@ -264,7 +286,7 @@ function buildContent(): DocumentFragment {
 
     const head = document.createElement("div");
     head.className = "legend-card-head";
-    head.appendChild(buildingIcon(0));
+    head.appendChild(buildingIcon(0, entry.glyph));
     const title = document.createElement("strong");
     title.textContent = `${entry.name} (${entry.footprint}×${entry.footprint})`;
     head.appendChild(title);
