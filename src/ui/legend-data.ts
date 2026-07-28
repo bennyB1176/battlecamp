@@ -15,6 +15,7 @@
 import {
   BUILDING_DEFS,
   buildingDef,
+  type BuildingGlyphId,
   type BuildingTypeId,
   type Recipe,
 } from "../content/buildings.js";
@@ -66,6 +67,7 @@ export interface BuildingEntry {
   readonly typeId: BuildingTypeId;
   readonly name: string;
   readonly footprint: number;
+  readonly glyph: BuildingGlyphId;
   readonly hp: number;
   readonly costText: string;
   readonly buildRadius: number;
@@ -166,6 +168,7 @@ export function buildingEntries(): BuildingEntry[] {
         typeId,
         name: def.name,
         footprint: def.footprint,
+        glyph: def.glyph,
         hp: def.maxHp,
         costText: formatCost(def.cost),
         buildRadius: def.buildRadius,

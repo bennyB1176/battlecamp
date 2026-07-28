@@ -395,22 +395,6 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.5);
 }
 
-.legend-building-icon {
-  position: relative;
-  display: inline-block;
-  width: 26px;
-  height: 26px;
-  border-radius: 3px;
-  border: 1px solid;
-  flex: none;
-}
-
-.legend-building-icon > span {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 34%;
-}
-
 .legend-table {
   border-collapse: collapse;
   font-size: 13px;

@@ -24,7 +24,7 @@
  * `UnitDef.shape` selects — and nothing else.
  */
 
-import { buildingDef, type BuildingTypeId } from "../content/buildings.js";
+import { BuildingGlyph, buildingDef, type BuildingTypeId } from "../content/buildings.js";
 import { playerColors } from "../content/players.js";
 import { UnitShape } from "../content/units.js";
 import type { Camera } from "../input/camera.js";
@@ -306,17 +306,18 @@ function drawBuilding(
 
   if (detailed) {
     ctx.fillStyle = colors.dark;
-    // A roof band across the top third, and a doorway notch at the bottom, give
-    // the block an orientation and a sense of scale.
+    // A roof band across the top third gives the block an orientation and a
+    // sense of scale.
     ctx.fillRect(topLeft.x + inset, topLeft.y + inset, size - inset * 2, (size - inset * 2) * 0.34);
-
-    ctx.fillStyle = colors.light;
-    const doorWidth = size * 0.22;
-    ctx.fillRect(topLeft.x + size / 2 - doorWidth / 2, topLeft.y + size - inset - size * 0.2, doorWidth, size * 0.2);
 
     ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(topLeft.x + inset, topLeft.y + inset, size - inset * 2, size - inset * 2);
+
+    // The mark that says *what* this is. Colour is spent on whose it is and
+    // there are only two footprints, so without this a base of seven building
+    // types is seven identical coloured blocks.
+    drawBuildingGlyph(ctx, def.glyph, topLeft.x + size / 2, topLeft.y + size * 0.6, size * 0.28, colors.light);
   }
 
   ctx.globalAlpha = 1;
@@ -503,6 +504,181 @@ function drawPowerRings(
   }
 
   ctx.restore();
+}
+
+/**
+ * Draw a building's mark, centred on (x, y) at the given radius.
+ *
+ * Shared with the legend, exactly like `traceUnitShape`: one piece of code
+ * decides what a smelter looks like, so the help sheet cannot drift away from
+ * the map. A dark outline under a light fill keeps every glyph readable against
+ * both the roof band and the walls, which are different shades of the same hue.
+ */
+export function drawBuildingGlyph(
+  ctx: CanvasRenderingContext2D,
+  glyph: string,
+  x: number,
+  y: number,
+  radius: number,
+  color: string,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+
+  traceBuildingGlyph(ctx, glyph, radius);
+
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.lineWidth = Math.max(1, radius * 0.34);
+  ctx.lineJoin = "round";
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * The outlines themselves, in a box of ±radius around the origin.
+ *
+ * Every one has to survive being a dozen pixels across on a phone, so they are
+ * silhouettes rather than pictures: no letters, no interior detail, and no two
+ * that could be confused at a glance.
+ */
+export function traceBuildingGlyph(ctx: CanvasRenderingContext2D, glyph: string, radius: number): void {
+  const r = radius;
+  ctx.beginPath();
+
+  switch (glyph) {
+    case BuildingGlyph.Banner: {
+      // A pennant on a pole: the seat of things.
+      ctx.moveTo(-r * 0.55, -r);
+      ctx.lineTo(-r * 0.2, -r);
+      ctx.lineTo(-r * 0.2, r);
+      ctx.lineTo(-r * 0.55, r);
+      ctx.closePath();
+      ctx.moveTo(-r * 0.2, -r);
+      ctx.lineTo(r, -r * 0.62);
+      ctx.lineTo(-r * 0.2, -r * 0.24);
+      ctx.closePath();
+      break;
+    }
+    case BuildingGlyph.Crate: {
+      // Two crates, stacked and offset. A single box with a strap across it was
+      // the first attempt and came out as a plain filled square: an inner detail
+      // drawn the same way round as its outline merges into the fill and simply
+      // disappears. Only the outline carries a silhouette, so the silhouette has
+      // to be the idea.
+      ctx.rect(-r * 0.95, r * 0.1, r * 1.5, r * 0.8);
+      ctx.rect(-r * 0.55, -r * 0.9, r * 1.5, r * 0.8);
+      break;
+    }
+    case BuildingGlyph.Chevrons: {
+      // Rank stripes: two arrowheads stacked.
+      for (const offset of [-r * 0.45, r * 0.35]) {
+        ctx.moveTo(-r * 0.9, offset + r * 0.4);
+        ctx.lineTo(0, offset - r * 0.35);
+        ctx.lineTo(r * 0.9, offset + r * 0.4);
+        ctx.lineTo(r * 0.55, offset + r * 0.4);
+        ctx.lineTo(0, offset + r * 0.05);
+        ctx.lineTo(-r * 0.55, offset + r * 0.4);
+        ctx.closePath();
+      }
+      break;
+    }
+    case BuildingGlyph.Merlons: {
+      // Battlements: the top edge of a wall, notched.
+      ctx.moveTo(-r, r * 0.7);
+      ctx.lineTo(-r, -r * 0.5);
+      ctx.lineTo(-r * 0.6, -r * 0.5);
+      ctx.lineTo(-r * 0.6, -r);
+      ctx.lineTo(-r * 0.2, -r);
+      ctx.lineTo(-r * 0.2, -r * 0.5);
+      ctx.lineTo(r * 0.2, -r * 0.5);
+      ctx.lineTo(r * 0.2, -r);
+      ctx.lineTo(r * 0.6, -r);
+      ctx.lineTo(r * 0.6, -r * 0.5);
+      ctx.lineTo(r, -r * 0.5);
+      ctx.lineTo(r, r * 0.7);
+      ctx.closePath();
+      break;
+    }
+    case BuildingGlyph.Axe: {
+      // An axe, after a saw blade came out as a starburst twice. A disc of
+      // teeth needs an arbor hole to read as a blade, and a hole means a
+      // reversed inner winding — more machinery than a glyph this size can
+      // carry. The axe is a handle and a wedge: two shapes, no ambiguity.
+      ctx.moveTo(r * 0.44, r * 0.98);
+      ctx.lineTo(r * 0.16, r * 0.98);
+      ctx.lineTo(-r * 0.12, -r * 0.5);
+      ctx.lineTo(r * 0.16, -r * 0.5);
+      ctx.closePath();
+
+      ctx.moveTo(r * 0.18, -r * 0.4);
+      ctx.lineTo(r * 0.18, -r * 0.98);
+      ctx.quadraticCurveTo(-r * 0.55, -r * 0.95, -r * 0.92, -r * 0.45);
+      ctx.quadraticCurveTo(-r * 0.45, -r * 0.24, r * 0.18, -r * 0.4);
+      ctx.closePath();
+      break;
+    }
+    case BuildingGlyph.Anvil: {
+      // An anvil. Two attempts at a flame both came out as a drop of water —
+      // on the building that melts ore, the one thing it must not say. A curved
+      // teardrop stays a teardrop however much it is kinked, because a thick
+      // outline rounds the kink away. The anvil's horn and waist survive being
+      // outlined at any size.
+      ctx.moveTo(-r * 0.95, -r * 0.7);
+      ctx.lineTo(r * 0.55, -r * 0.7);
+      ctx.lineTo(r * 0.98, -r * 0.35);
+      ctx.lineTo(r * 0.5, -r * 0.28);
+      ctx.lineTo(-r * 0.35, -r * 0.28);
+      ctx.lineTo(-r * 0.2, r * 0.35);
+      ctx.lineTo(-r * 0.7, r * 0.95);
+      ctx.lineTo(r * 0.7, r * 0.95);
+      ctx.lineTo(r * 0.2, r * 0.35);
+      ctx.lineTo(-r * 0.05, -r * 0.28);
+      ctx.lineTo(-r * 0.95, -r * 0.28);
+      ctx.closePath();
+      break;
+    }
+    case BuildingGlyph.Grain: {
+      // Three ears standing in a row. A single shoot with two leaves read as a
+      // propeller; three of anything reads as a crop.
+      const ears: ReadonlyArray<readonly [number, number]> = [
+        [-r * 0.62, -r * 0.45],
+        [0, -r * 0.95],
+        [r * 0.62, -r * 0.45],
+      ];
+      for (const [offset, top] of ears) {
+        // A thin stalk under a fat pointed head. Small round heads came out as
+        // pins stuck in a board; an ear of grain has to be wider than its stalk
+        // by enough to see.
+        ctx.moveTo(offset - r * 0.09, r * 0.95);
+        ctx.lineTo(offset + r * 0.09, r * 0.95);
+        ctx.lineTo(offset + r * 0.09, top + r * 0.62);
+        ctx.closePath();
+
+        ctx.moveTo(offset, top - r * 0.18);
+        ctx.quadraticCurveTo(offset + r * 0.34, top + r * 0.1, offset + r * 0.2, top + r * 0.66);
+        ctx.quadraticCurveTo(offset, top + r * 0.82, offset - r * 0.2, top + r * 0.66);
+        ctx.quadraticCurveTo(offset - r * 0.34, top + r * 0.1, offset, top - r * 0.18);
+        ctx.closePath();
+      }
+      break;
+    }
+    case BuildingGlyph.Bolt:
+    default: {
+      // A lightning bolt. The one glyph nobody has to be taught.
+      ctx.moveTo(r * 0.35, -r);
+      ctx.lineTo(-r * 0.6, r * 0.15);
+      ctx.lineTo(-r * 0.05, r * 0.15);
+      ctx.lineTo(-r * 0.35, r);
+      ctx.lineTo(r * 0.6, -r * 0.2);
+      ctx.lineTo(r * 0.05, -r * 0.2);
+      ctx.closePath();
+      break;
+    }
+  }
 }
 
 /** A faint line from each selected unit to where it was told to go. */

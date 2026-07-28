@@ -43,6 +43,39 @@ export type BuildingTypeId = (typeof BuildingType)[keyof typeof BuildingType];
  * *opportunity* — the wood it eats is wood not spent on units, and the building
  * itself is more ground to defend.
  */
+/**
+ * The mark drawn on a building's roof.
+ *
+ * Colour already says *whose* and cannot be spent on anything else, and a
+ * footprint is only two sizes — so with seven building types a base was seven
+ * identical coloured blocks. The glyph is the only channel left that says
+ * *what*, which makes it the difference between reading a base at a glance and
+ * tapping every block to find the smelter.
+ *
+ * Chosen to be legible as a silhouette at a dozen pixels: no letters, no fine
+ * detail, and no two that share an outline.
+ */
+export const BuildingGlyph = {
+  /** A banner: the seat of things. */
+  Banner: "banner",
+  /** A crate. */
+  Crate: "crate",
+  /** Rank chevrons. */
+  Chevrons: "chevrons",
+  /** Battlements. */
+  Merlons: "merlons",
+  /** An axe. */
+  Axe: "axe",
+  /** An anvil. */
+  Anvil: "anvil",
+  /** Three ears of grain. */
+  Grain: "grain",
+  /** A lightning bolt. */
+  Bolt: "bolt",
+} as const;
+
+export type BuildingGlyphId = (typeof BuildingGlyph)[keyof typeof BuildingGlyph];
+
 export interface Recipe {
   readonly input: ResourceKind;
   readonly inputAmount: number;
@@ -92,6 +125,8 @@ export interface BuildingDef {
    * wider than the base around it, which is exactly what makes it a target.
    */
   readonly powerRadius: number;
+  /** The mark drawn on its roof, so a base can be read without tapping it. */
+  readonly glyph: BuildingGlyphId;
 }
 
 export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
@@ -116,6 +151,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     // mattering exactly where a base stops: expansions, forward refineries, and
     // the moment somebody levels the headquarters.
     powerRadius: fromTiles(6),
+    glyph: BuildingGlyph.Banner,
   },
   [BuildingType.Depot]: {
     name: "Lager",
@@ -131,6 +167,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     refines: null,
     foodSupply: 0,
     powerRadius: 0,
+    glyph: BuildingGlyph.Crate,
   },
   [BuildingType.Barracks]: {
     name: "Kaserne",
@@ -146,6 +183,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     refines: null,
     foodSupply: 0,
     powerRadius: 0,
+    glyph: BuildingGlyph.Chevrons,
   },
   [BuildingType.Tower]: {
     name: "Turm",
@@ -165,6 +203,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     refines: null,
     foodSupply: 0,
     powerRadius: 0,
+    glyph: BuildingGlyph.Merlons,
   },
   [BuildingType.Sawmill]: {
     name: "Sägewerk",
@@ -189,6 +228,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
       outputAmount: 10,
       ticks: 120,
     },
+    glyph: BuildingGlyph.Axe,
   },
   [BuildingType.Farm]: {
     name: "Farm",
@@ -206,6 +246,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     refines: null,
     foodSupply: 12,
     powerRadius: 0,
+    glyph: BuildingGlyph.Grain,
   },
   [BuildingType.PowerPlant]: {
     name: "Kraftwerk",
@@ -223,6 +264,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     refines: null,
     foodSupply: 0,
     powerRadius: fromTiles(9),
+    glyph: BuildingGlyph.Bolt,
   },
   [BuildingType.Smelter]: {
     name: "Schmelze",
@@ -244,6 +286,7 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
       outputAmount: 10,
       ticks: 150,
     },
+    glyph: BuildingGlyph.Anvil,
   },
 };
 

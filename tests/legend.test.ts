@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { BUILDING_DEFS, BuildingType } from "../src/content/buildings.js";
+import { BUILDING_DEFS, buildingDef, BuildingType } from "../src/content/buildings.js";
 import { UNIT_DEFS, UnitType, unitDef } from "../src/content/units.js";
 import {
   buildingEntries,
@@ -77,6 +77,24 @@ describe("unit entries", () => {
     // on a distinction they cannot see.
     const shapes = unitEntries().map((entry) => entry.shape);
     expect(new Set(shapes).size).toBe(shapes.length);
+  });
+});
+
+describe("telling the buildings apart", () => {
+  it("gives every building type its own glyph", () => {
+    // Seven buildings drawn as seven identical coloured squares is a base a
+    // player cannot read: which block was the smelter and which the farm is not
+    // a question anyone should have to answer by tapping each one.
+    const glyphs = buildingEntries().map((entry) => entry.glyph);
+    expect(new Set(glyphs).size, "two buildings look identical on the map").toBe(glyphs.length);
+  });
+
+  it("carries the glyph from the table, not from the drawing code", () => {
+    // Same rule as the units: one source, so the map and the legend can never
+    // disagree about what a building looks like.
+    for (const entry of buildingEntries()) {
+      expect(entry.glyph).toBe(buildingDef(entry.typeId).glyph);
+    }
   });
 });
 
