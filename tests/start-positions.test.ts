@@ -21,6 +21,7 @@ import { isPassable, terrainAt } from "../src/sim/grid.js";
 import { RAW_KINDS, resourceOfTerrain, RESOURCE_NAMES } from "../src/sim/resources.js";
 import { computeFlowField, isReachable } from "../src/sim/pathing.js";
 import { createWorld, type World } from "../src/sim/world.js";
+import { MAP_SIZES } from "../src/ui/match-settings.js";
 
 // Seeds 1 to 8 are the ones the headless match runner uses, so a map that
 // cannot be played shows up here rather than as a nil-all twenty minutes later.
@@ -220,6 +221,59 @@ describe("determinism and configuration", () => {
         const tileX = Math.floor(entity.x / ONE);
         const tileY = Math.floor(entity.y / ONE);
         expect(world.grid.blocked[tileY * world.grid.width + tileX]).toBe(0);
+      }
+    }
+  });
+});
+
+/**
+ * Every map size the setup screen can produce.
+ *
+ * The whole generator — anchors, resource seeding, the search for buildable
+ * ground — was only ever exercised at 64×64. A size the menu offers but the
+ * generator cannot serve would ship as a match that opens without a base, and
+ * nothing else in the suite would notice.
+ */
+describe("the offered map sizes", () => {
+  for (const size of MAP_SIZES) {
+    it.each(SEEDS)(`plays on ${size.name} (${size.tiles} tiles) with seed %i`, (seed) => {
+      const world = createWorld({ seed, width: size.tiles, height: size.tiles });
+
+      for (const player of world.players) {
+        const hq = headquartersOf(world, player.id);
+        expect(hq, `player ${player.id} got no headquarters`).toBeDefined();
+        expect(unitsOf(world, player.id).length, `player ${player.id} got no units`).toBeGreaterThan(0);
+      }
+
+      // The two bases must not share a yard. A headquarters reaches seven
+      // tiles for building, so anything under about fifteen means the two
+      // players are placing into each other's opening — a coin flip decided in
+      // the first thirty seconds, before either has made a decision.
+      const [mine, theirs] = world.players.map((player) => headquartersOf(world, player.id)!);
+      const apart = dist(mine!.x, mine!.y, theirs!.x, theirs!.y) / ONE;
+      expect(apart, `the two bases are ${apart.toFixed(1)} tiles apart`).toBeGreaterThan(15);
+    });
+  }
+
+  it.each(MAP_SIZES.map((size) => size.tiles))("gives every start all three raw resources at %i tiles", (tiles) => {
+    for (const seed of SEEDS) {
+      const world = createWorld({ seed, width: tiles, height: tiles });
+
+      for (const player of world.players) {
+        const hq = headquartersOf(world, player.id)!;
+        for (const kind of RAW_KINDS) {
+          let found = false;
+          for (let tileY = 0; tileY < world.grid.height && !found; tileY++) {
+            for (let tileX = 0; tileX < world.grid.width && !found; tileX++) {
+              if (resourceOfTerrain(terrainAt(world.grid, tileX, tileY)) !== kind) continue;
+              if (dist(hq.x, hq.y, tileX * ONE, tileY * ONE) / ONE <= REACH_TILES) found = true;
+            }
+          }
+          expect(
+            found,
+            `${tiles} tiles, seed ${seed}: player ${player.id} has no ${RESOURCE_NAMES[kind]} within reach`,
+          ).toBe(true);
+        }
       }
     }
   });

@@ -107,11 +107,11 @@ describe("simulation determinism", () => {
    */
   it("matches the recorded golden hash", () => {
     const { finalHash } = runScriptedMatch(20260727, 500);
-    // Moved twice in one milestone: first because the match tally became part
-    // of the world, then because fog of war did. Explored ground is hashed —
-    // where a player has been is history, not something recomputable from where
-    // they stand now.
-    expect(finalHash).toBe("3720a049");
+    // Moved by the opening generator: "within reach of the start" is now
+    // measured as the crow flies rather than as a square, so the seams it
+    // guarantees are genuinely within walking distance instead of up to
+    // seventeen tiles away at the corners.
+    expect(finalHash).toBe("a8d8255d");
   });
 });
 
