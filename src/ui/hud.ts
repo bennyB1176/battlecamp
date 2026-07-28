@@ -54,8 +54,14 @@ export interface Hud {
   setResources: (amounts: Readonly<Record<ResourceKind, number>>) => void;
   /** Mouths to feed against the ceiling that feeds them. */
   setFood: (demand: number, supply: number) => void;
-  /** Replace the context panel. An empty action list hides it. */
-  setContext: (title: string, actions: readonly HudAction[]) => void;
+  /**
+   * Replace the context panel. It hides when there is nothing to say.
+   *
+   * `onDismiss` is what the panel's × does — clearing the selection, or closing
+   * the build menu. Omitting it hides the ×, so the button never appears
+   * offering to dismiss something that cannot be dismissed.
+   */
+  setContext: (title: string, actions: readonly HudAction[], onDismiss?: () => void) => void;
 }
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -102,6 +108,16 @@ export function createHud(callbacks: HudCallbacks): Hud {
 
   const context = requireElement<HTMLDivElement>("hud-context");
   const contextTitle = requireElement<HTMLDivElement>("context-title");
+  const contextDismiss = requireElement<HTMLButtonElement>("context-dismiss");
+  const infoToggle = requireElement<HTMLButtonElement>("btn-info");
+  let dismiss: (() => void) | undefined;
+  contextDismiss.addEventListener("click", () => dismiss?.());
+
+  infoToggle.addEventListener("click", () => {
+    stats.hidden = !stats.hidden;
+    infoToggle.classList.toggle("active", !stats.hidden);
+    infoToggle.setAttribute("aria-label", stats.hidden ? "Status einblenden" : "Status ausblenden");
+  });
   const contextActions = requireElement<HTMLDivElement>("context-actions");
 
   pauseButton.addEventListener("click", callbacks.onTogglePause);
@@ -117,6 +133,13 @@ export function createHud(callbacks: HudCallbacks): Hud {
     if (event.code === "Space") {
       event.preventDefault();
       callbacks.onTogglePause();
+      return;
+    }
+    // Escape is what a desktop player reaches for to back out of a mode, and it
+    // does exactly what the panel's × does — one idea, not two.
+    if (event.code === "Escape") {
+      event.preventDefault();
+      dismiss?.();
     }
   });
 
@@ -165,16 +188,23 @@ export function createHud(callbacks: HudCallbacks): Hud {
       if (food.textContent !== text) food.textContent = text;
       food.classList.toggle("short", demand > supply);
     },
-    setContext: (title, actions) => {
+    setContext: (title, actions, onDismiss) => {
+      // Kept out of the signature: it changes identity every frame, and it
+      // changes nothing the player can see.
+      dismiss = onDismiss;
+      contextDismiss.hidden = onDismiss === undefined;
+
       // Rebuilding the panel on every frame would kill any button mid-tap on a
       // touchscreen, so it is only redrawn when its content actually differs.
-      const signature = `${title}|${actions
+      const signature = `${title}|${onDismiss ? 1 : 0}|${actions
         .map((action) => `${action.id}:${action.label}:${action.detail ?? ""}:${action.disabled ? 1 : 0}:${action.armed ? 1 : 0}`)
         .join(",")}`;
       if (signature === renderedSignature) return;
       renderedSignature = signature;
 
-      if (actions.length === 0) {
+      // A selected soldier has a name and no actions, and it still needs the
+      // panel — that is where the way out lives.
+      if (actions.length === 0 && title === "") {
         context.hidden = true;
         contextActions.replaceChildren();
         return;

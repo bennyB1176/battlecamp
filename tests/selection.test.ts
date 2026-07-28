@@ -179,3 +179,60 @@ describe("selection bookkeeping", () => {
     expect(selectedEntities(selection, world)).toHaveLength(0);
   });
 });
+
+describe("letting go of a selection", () => {
+  it("deselects a unit tapped a second time", () => {
+    // Until now the only way to clear a selection was to select something else,
+    // which means there was no way at all to end up with nothing selected — and
+    // with something selected, a tap on open ground is a move order. Tapping the
+    // same unit again is the undo the gesture set was missing.
+    const world = emptyWorld();
+    const worker = spawn(world, 5, 5);
+    const selection = createSelection();
+
+    expect(selectAt(selection, world, fromTiles(5), fromTiles(5), 0)).toBe(true);
+    expect(isSelected(selection, worker.id)).toBe(true);
+
+    expect(selectAt(selection, world, fromTiles(5), fromTiles(5), 0)).toBe(true);
+    expect(isSelected(selection, worker.id), "the second tap did not let go").toBe(false);
+    expect(selection.ids.size).toBe(0);
+  });
+
+  it("replaces the group rather than dropping one of it", () => {
+    // Tapping one unit out of twelve means "just this one", not "all but this
+    // one". Toggling only makes sense when the tapped unit *is* the selection.
+    const world = emptyWorld();
+    const a = spawn(world, 5, 5);
+    const b = spawn(world, 9, 9);
+    const selection = createSelection();
+    selection.ids.add(a.id);
+    selection.ids.add(b.id);
+
+    selectAt(selection, world, fromTiles(5), fromTiles(5), 0);
+
+    expect([...selection.ids]).toEqual([a.id]);
+  });
+
+  it("still selects a unit that was not selected before", () => {
+    const world = emptyWorld();
+    const a = spawn(world, 5, 5);
+    const b = spawn(world, 9, 9);
+    const selection = createSelection();
+    selection.ids.add(a.id);
+
+    selectAt(selection, world, fromTiles(9), fromTiles(9), 0);
+
+    expect([...selection.ids]).toEqual([b.id]);
+  });
+
+  it("leaves a tap on empty ground alone", () => {
+    // Ground taps are move orders. Selection must not quietly eat them.
+    const world = emptyWorld();
+    const worker = spawn(world, 5, 5);
+    const selection = createSelection();
+    selection.ids.add(worker.id);
+
+    expect(selectAt(selection, world, fromTiles(20), fromTiles(20), 0)).toBe(false);
+    expect(isSelected(selection, worker.id)).toBe(true);
+  });
+});

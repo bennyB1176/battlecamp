@@ -32,28 +32,42 @@
              is one edit in src/sim/resources.ts and nothing here. -->
         <div class="pill resources" id="resources"></div>
         <div class="pill" id="clock">0:00</div>
-        <div class="pill" id="stats">–</div>
+        <!-- The diagnostics used to sit here as a permanently expanded pill and
+             ate a third of the top row on a phone. Now they are one tap away. -->
+        <button class="pill info-toggle" id="btn-info" aria-label="Status einblenden">i</button>
+        <div class="pill" id="stats" hidden>–</div>
       </div>
 
-      <!-- Context panel: what the current selection can do. Empty when nothing
-           is selected, so it never takes up room it has not earned. -->
-      <div id="hud-context" hidden>
-        <div id="context-title"></div>
-        <div id="context-actions"></div>
-      </div>
+      <!-- Panel and controls travel together, hard against the bottom edge:
+           on a phone that is the half of the screen a thumb can actually
+           reach, and the panel is where the way out of a selection lives. -->
+      <div id="hud-lower">
+        <!-- Context panel: what the current selection can do. Empty when nothing
+             is selected, so it never takes up room it has not earned. -->
+        <div id="hud-context" hidden>
+          <div id="context-head">
+            <div id="context-title"></div>
+            <!-- The way out. Until this existed, the only way to clear a
+                 selection was to make another one — and with something
+                 selected, a tap on open ground is a move order. -->
+            <button id="context-dismiss" aria-label="Auswahl aufheben">×</button>
+          </div>
+          <div id="context-actions"></div>
+        </div>
 
-      <div id="hud-bottom">
-        <button class="ctrl" id="btn-pause" aria-label="Pause">⏸</button>
-        <!-- One button, not three: in portrait the row used to run off the
-             screen, and the first thing lost was the help button. Tapping
-             cycles 1x, 2x, 4x and back. -->
-        <button class="ctrl" id="btn-speed">▶︎</button>
-        <button class="ctrl" id="btn-center" aria-label="Zentrieren">⌖</button>
-        <!-- Touch has no right mouse button, so box-select needs its own mode. -->
-        <button class="ctrl" id="btn-select" aria-label="Auswahlmodus">⬚</button>
-        <button class="ctrl" id="btn-build" aria-label="Bauen">🔨</button>
-        <button class="ctrl" id="btn-attack" aria-label="Angriffsbewegung">⚔</button>
-        <button class="ctrl" id="btn-legend" aria-label="Legende und Anleitung">?</button>
+        <div id="hud-bottom">
+          <button class="ctrl" id="btn-pause" aria-label="Pause">⏸</button>
+          <!-- One button, not three: in portrait the row used to run off the
+               screen, and the first thing lost was the help button. Tapping
+               cycles 1x, 2x, 4x and back. -->
+          <button class="ctrl" id="btn-speed">▶︎</button>
+          <button class="ctrl" id="btn-center" aria-label="Zur eigenen Basis">⌖</button>
+          <!-- Touch has no right mouse button, so box-select needs its own mode. -->
+          <button class="ctrl" id="btn-select" aria-label="Auswahlmodus">⬚</button>
+          <button class="ctrl" id="btn-build" aria-label="Bauen">🔨</button>
+          <button class="ctrl" id="btn-attack" aria-label="Angriffsbewegung">⚔</button>
+          <button class="ctrl" id="btn-legend" aria-label="Legende und Anleitung">?</button>
+        </div>
       </div>
     </div>
 
