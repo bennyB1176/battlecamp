@@ -890,3 +890,38 @@ body {
 #result-again:active {
   transform: scale(0.98);
 }
+
+/* The way back into a game somebody was already playing. Above the fold and
+   above the options, because a player who has a match running wants it — the
+   settings below are for a decision they have already made once. */
+#setup-resume {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 58px;
+  margin-bottom: 8px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(255, 214, 102, 0.16);
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#setup-resume strong {
+  font-size: 16px;
+}
+
+#setup-resume span {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+#setup-resume:active {
+  transform: scale(0.98);
+}
