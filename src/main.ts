@@ -660,6 +660,7 @@ function start(settings: MatchSettings, resumed: World | null = null): void {
       selectionBox,
       buildPreview: armedBuilding,
       localPlayer: LOCAL_PLAYER,
+      deltaMs: delta,
     });
 
     minimap.draw(world, camera, LOCAL_PLAYER);

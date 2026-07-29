@@ -109,7 +109,7 @@ function stepFighter(world: World, entity: Entity, weapon: Weapon): void {
   if (separationSq <= reach * reach) {
     entity.goalX = null;
     entity.goalY = null;
-    fire(entity, target, weapon);
+    fire(world, entity, target, weapon);
     return;
   }
 
@@ -172,11 +172,22 @@ function bodyRadius(entity: Entity): number {
   return isBuilding(entity) ? (buildingDefOf(entity).footprint * 256) / 2 : unitDefOf(entity).radius;
 }
 
-function fire(attacker: Entity, target: Entity, weapon: Weapon): void {
+function fire(world: World, attacker: Entity, target: Entity, weapon: Weapon): void {
   if (attacker.weaponCooldown > 0) return;
 
   target.hp -= damageAgainst(weapon.damage, weapon.damageType, armorOf(target) as never);
   attacker.weaponCooldown = weapon.cooldownTicks;
+
+  // Recorded where it was aimed, not where the target ends up: the tracer is
+  // drawn over the following tenth of a second, and a target that dies or walks
+  // in the meantime would otherwise drag the shot along behind it.
+  world.shots.push({
+    playerId: attacker.owner,
+    fromX: attacker.x,
+    fromY: attacker.y,
+    toX: target.x,
+    toY: target.y,
+  });
 }
 
 /** Put an attack-moving unit back on the road once nothing is in reach. */

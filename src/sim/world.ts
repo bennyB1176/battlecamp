@@ -66,6 +66,29 @@ import { createSpatialHash, type SpatialHash } from "./spatial.js";
 // constants.ts to stay importable from content tables without a cycle.
 export { MS_PER_TICK, TICKS_PER_SECOND } from "./constants.js";
 
+/**
+ * One shot fired this tick, for the renderer to draw a tracer along.
+ *
+ * A report, not state. Nothing in the simulation ever reads it back, which is
+ * why it is the one thing in the world that is deliberately **left out of the
+ * hash and out of a saved game**: two machines disagreeing about a tracer
+ * cannot diverge, because nothing downstream depends on it. Keeping it out
+ * costs a comment and saves hashing a list that changes every single tick.
+ *
+ * It has to come from here all the same. The renderer cannot work out who
+ * fired at what on its own: a unit shooting something it noticed by itself
+ * never records that target, on purpose — an auto-acquired enemy is not an
+ * order. So most shots would be invisible to anything watching from outside.
+ */
+export interface Shot {
+  readonly playerId: PlayerId;
+  /** Fixed-point, where it left from and where it landed. */
+  readonly fromX: number;
+  readonly fromY: number;
+  readonly toX: number;
+  readonly toY: number;
+}
+
 export interface Marker {
   readonly playerId: number;
   readonly tileX: number;
@@ -174,6 +197,8 @@ export interface World {
   winner: PlayerId | null;
   matchOver: boolean;
   markers: Marker[];
+  /** Cleared at the start of every tick; whatever was fired during it. */
+  shots: Shot[];
 }
 
 export function createWorld(config: Partial<WorldConfig> = {}): World {
@@ -218,6 +243,7 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
     winner: null,
     matchOver: false,
     markers: [],
+    shots: [],
   };
 
   stockDeposits(world);
@@ -682,6 +708,11 @@ function passableEdge(
  * takes effect before the systems that react to it run.
  */
 export function tickWorld(world: World, commands: readonly Command[] = []): void {
+  // Last tick's tracers are old news. Cleared here rather than after drawing,
+  // so the renderer can be called any number of times per tick — which it is,
+  // six times over at sixty frames a second — and always see the same list.
+  world.shots.length = 0;
+
   for (const command of commands) {
     applyCommand(world, command);
   }

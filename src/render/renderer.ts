@@ -25,6 +25,7 @@ import {
   pruneRenderState,
 } from "./entities.js";
 import { createFogCache, drawFog, type FogCache } from "./fog.js";
+import { createTracerStore, drawTracers, updateTracers, type TracerStore } from "./shots.js";
 import { createTerrainCache, drawTerrain, type TerrainCache } from "./terrain.js";
 
 /** Below this zoom the tile grid becomes visual noise, so we stop drawing it. */
@@ -35,6 +36,8 @@ export interface Renderer {
   readonly ctx: CanvasRenderingContext2D;
   readonly terrain: TerrainCache;
   readonly fog: FogCache;
+  /** Shots in the air. Renderer state: a tracer is a drawing, not a fact. */
+  readonly tracers: TracerStore;
   /** The world's terrain version this renderer last drew. */
   terrainVersion: number;
   /** Milliseconds the last frame spent drawing, for the debug overlay. */
@@ -50,6 +53,7 @@ export function createRenderer(canvas: HTMLCanvasElement, world: World): Rendere
     ctx,
     terrain: createTerrainCache(world.grid),
     fog: createFogCache(world.grid.width, world.grid.height),
+    tracers: createTracerStore(),
     terrainVersion: world.terrainVersion,
     lastFrameMs: 0,
   };
@@ -98,6 +102,15 @@ export interface FrameInput {
   /** Building type awaiting placement; tints every legal tile. */
   readonly buildPreview: BuildingTypeId | null;
   readonly localPlayer: number;
+  /**
+   * Real milliseconds since the last frame.
+   *
+   * The only wall-clock value the renderer is given, and it exists for the
+   * tracers: shots have to fly at the same speed however fast the simulation is
+   * being run, because a dot crossing a gap is a thing the eye follows, not a
+   * thing the game world measures.
+   */
+  readonly deltaMs: number;
 }
 
 export function renderFrame(renderer: Renderer, world: World, camera: Camera, input: FrameInput): void {
@@ -125,6 +138,11 @@ export function renderFrame(renderer: Renderer, world: World, camera: Camera, in
   drawPendingCommands(ctx, camera, input.pending);
   drawOrders(ctx, world, camera, input.selection);
   drawEntities(ctx, world, camera, input.selection, input.alpha, input.localPlayer);
+
+  // Over the units that fired them, under the fog: a tracer flying through
+  // ground the player cannot see would light up an ambush.
+  updateTracers(renderer.tracers, world, input.localPlayer, input.deltaMs);
+  drawTracers(ctx, renderer.tracers, camera);
   // Over the map and everything on it, under the selection box: the box is a
   // gesture in progress, not part of the world, and must never be fogged out.
   drawFog(ctx, renderer.fog, world, camera, input.localPlayer);

@@ -217,6 +217,9 @@ export function restoreWorld(raw: unknown): World {
     winner: snapshot.winner ?? null,
     matchOver: snapshot.matchOver ?? false,
     markers: (snapshot.markers ?? []).map((marker) => ({ ...marker })),
+    // Not saved and not restored: tracers describe a tenth of a second that is
+    // already over by the time anyone loads the game.
+    shots: [],
   };
 
   // Rebuilt rather than stored: it is a pure function of where things stand,
