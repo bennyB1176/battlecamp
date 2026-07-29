@@ -87,6 +87,14 @@ export interface WorldConfig {
   readonly startingUnits: number;
   /** Which kind of place this is. Decides terrain mix and resource density. */
   readonly biome: BiomeId;
+  /**
+   * How many sides are in the match, the human included.
+   *
+   * Free-for-all: nobody is allied with anybody, so every side is every other
+   * side's enemy and the last one standing wins. Bounded by the anchor table
+   * below, which is what decides where a fourth base could even go.
+   */
+  readonly playerCount: number;
 }
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
@@ -95,7 +103,11 @@ export const DEFAULT_WORLD_CONFIG: WorldConfig = {
   height: 64,
   startingUnits: 12,
   biome: Biome.Grassland,
+  playerCount: 2,
 };
+
+/** Most sides a match can have, set by the start-anchor table. */
+export const MAX_PLAYERS = 4;
 
 /**
  * Opening stock: enough for a depot and a few workers, not enough to skip
@@ -166,6 +178,9 @@ export interface World {
 
 export function createWorld(config: Partial<WorldConfig> = {}): World {
   const { seed, width, height, startingUnits, biome } = { ...DEFAULT_WORLD_CONFIG, ...config };
+  // Clamped rather than trusted: a saved game or a hand-edited link can ask for
+  // five, and there is nowhere on the map to put a fifth base.
+  const playerCount = Math.min(MAX_PLAYERS, Math.max(2, config.playerCount ?? DEFAULT_WORLD_CONFIG.playerCount));
 
   // Map generation gets its own generator so that later changes to how many
   // random numbers the runtime sim draws cannot alter the map for a given seed.
@@ -179,14 +194,12 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
     rng: createRng((seed ^ 0x9e3779b9) >>> 0),
     grid,
     deposits: new Int32Array(width * height),
-    // Two players from the start: the second is inert until M4's bots move in,
-    // but having the slot means ownership checks are exercised from day one.
-    players: [
-      createPlayer(0, STARTING_STOCK),
-      createPlayer(1, STARTING_STOCK),
-    ],
-    stats: [createStats(), createStats()],
-    vision: [createVision(width, height), createVision(width, height)],
+    // Everybody starts on identical books. In a free-for-all that matters more
+    // than in a duel: three opponents who each began with something different
+    // would make the result unreadable.
+    players: Array.from({ length: playerCount }, (_, id) => createPlayer(id, STARTING_STOCK)),
+    stats: Array.from({ length: playerCount }, () => createStats()),
+    vision: Array.from({ length: playerCount }, () => createVision(width, height)),
     entities: createEntityStore(),
     // Sized for how many *distinct* goals exist at once, which is what actually
     // drives the cache. Every gathering worker walks to its own deposit tile, so
@@ -416,7 +429,7 @@ function spawnBase(
   // the base is judged to be on. Spiralling for merely *passable* tiles once
   // scattered a player's opening across a lake: half the workforce spawned on
   // an islet two tiles away and never took a single order.
-  const home = passableEdge(world.grid, origin.tileX, origin.tileY, footprint, shared);
+  const home = passableEdge(world.grid, origin.tileX, origin.tileY, footprint, shared, MIN_HOME_ROOM_TILES);
   if (!home) return null;
   const reachable = findRegionFrom(world.grid, home.tileX, home.tileY);
 
@@ -466,9 +479,14 @@ const START_SEPARATION_AT_64 = 22;
  * straight through to its last resort — and a modest gap on a large one. Scaled
  * from the value the default map was tuned at, so that map is unaffected.
  */
-function startSeparationTiles(grid: TileGrid): number {
+function startSeparationTiles(grid: TileGrid, playerCount: number): number {
   const shortEdge = Math.min(grid.width, grid.height);
-  return Math.max(8, Math.round((shortEdge * START_SEPARATION_AT_64) / 64));
+  const forSize = (shortEdge * START_SEPARATION_AT_64) / 64;
+  // And with the number of sides, because they share the same ground. Four
+  // openings on a map sized for two cannot each keep a duel's worth of room,
+  // and demanding it would only send the search through the whole ladder to
+  // its last resort — which is worse than asking for what is achievable.
+  return Math.max(8, Math.round(forSize * Math.sqrt(2 / playerCount)));
 }
 
 /**
@@ -481,9 +499,15 @@ function startSeparationTiles(grid: TileGrid): number {
  * genuinely cramped rather than catastrophic, and zero stays only as the last
  * resort it was always meant to be — no base at all is worse than a bad one.
  */
-function separationLadder(grid: TileGrid): number[] {
-  const target = startSeparationTiles(grid);
-  const steps = [target, Math.round(target * 0.8), Math.round(target * 0.65), FLOOR_SEPARATION_TILES, 0];
+function separationLadder(grid: TileGrid, playerCount: number): number[] {
+  const target = startSeparationTiles(grid, playerCount);
+  const steps = [
+    target,
+    Math.round(target * 0.8),
+    Math.round(target * 0.65),
+    floorSeparationTiles(playerCount),
+    0,
+  ];
   return [...new Set(steps)].filter((step) => step >= 0).sort((a, b) => b - a);
 }
 
@@ -493,6 +517,17 @@ function separationLadder(grid: TileGrid): number[] {
  * buildings into each other's opening.
  */
 const FLOOR_SEPARATION_TILES = 15;
+
+/**
+ * The floor, scaled the same way the target is.
+ *
+ * Exported because the tests assert against the promise rather than against a
+ * number somebody typed twice — a bar that has to be edited by hand every time
+ * the rule changes is a bar that stops meaning anything.
+ */
+export function floorSeparationTiles(playerCount: number): number {
+  return Math.max(8, Math.round(FLOOR_SEPARATION_TILES * Math.sqrt(2 / playerCount)));
+}
 
 /**
  * Find ground near the anchor that will take a headquarters, and place it.
@@ -509,7 +544,7 @@ function placeStartingHeadquarters(
   anchorY: number,
   shared: Uint8Array,
 ): Entity | null {
-  for (const separation of separationLadder(world.grid)) {
+  for (const separation of separationLadder(world.grid, world.players.length)) {
     const placed = trySiteNear(world, playerId, anchorX, anchorY, shared, separation);
     if (placed) return placed;
   }
@@ -538,7 +573,7 @@ function trySiteNear(
         if (!isBuildable(world.grid, tileX, tileY, footprint)) continue;
         // A worker must be able to stand beside it *and* be on the shared
         // ground, or this base is marooned.
-        if (!passableEdge(world.grid, tileX, tileY, footprint, shared)) continue;
+        if (!passableEdge(world.grid, tileX, tileY, footprint, shared, MIN_HOME_ROOM_TILES)) continue;
         if (!farEnoughFromOtherBases(world, tileX + half, tileY + half, minSeparationTiles)) continue;
 
         const placed = placeBuildingAt(world, playerId, BuildingType.Headquarters, tileX, tileY, {
@@ -589,12 +624,28 @@ function farEnoughFromOtherBases(
  * eight twenty-minute bot matches ended nil-all that way, both sides mining
  * peacefully on separate islands.
  */
+/**
+ * How much open ground a base's doorstep has to connect to.
+ *
+ * Roughly a base's worth of yard. The number matters because the alternative
+ * turned up the moment a third player needed somewhere to stand: a
+ * headquarters can wall its own doorstep into a pocket, and the tile still
+ * passes every check made *before* the building went up. On one map that left
+ * the shared ground four tiles wide — a starting twelve units sealed into a
+ * nook they could never walk out of, and nowhere at all for the next player.
+ *
+ * It had been shipping in two-player matches too. Nothing noticed, because
+ * with two sides nobody else needed the ground afterwards.
+ */
+const MIN_HOME_ROOM_TILES = 60;
+
 function passableEdge(
   grid: TileGrid,
   tileX: number,
   tileY: number,
   footprint: number,
   region: Uint8Array,
+  minRoom = 0,
 ): { tileX: number; tileY: number } | null {
   const sides: Array<[number, number]> = [];
   for (let offset = 0; offset < footprint; offset++) {
@@ -608,6 +659,16 @@ function passableEdge(
     if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) continue;
     if (region[y * grid.width + x] !== 1) continue;
     if (!isPassable(grid, x, y)) continue;
+
+    if (minRoom > 0) {
+      // Measured with the footprint taken out, so the answer is the same
+      // whether this is asked before the building is placed or after.
+      const reachable = findRegionFrom(grid, x, y, { tileX, tileY, size: footprint });
+      let room = 0;
+      for (let i = 0; i < reachable.length; i++) room += reachable[i]!;
+      if (room < minRoom) continue;
+    }
+
     return { tileX: x, tileY: y };
   }
 

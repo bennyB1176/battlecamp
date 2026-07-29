@@ -18,6 +18,7 @@ import { DIFFICULTY_NAMES, Difficulty, type DifficultyId } from "../ai/bot.js";
 import { BIOME_LIST, biomeDef, type BiomeId } from "../content/biomes.js";
 import {
   MAP_SIZES,
+  OPPONENT_COUNTS,
   randomSeed,
   settingsToQuery,
   type MatchSettings,
@@ -29,6 +30,12 @@ const DIFFICULTY_NOTES: Readonly<Record<DifficultyId, string>> = {
   [Difficulty.Easy]: "Spät dran, kleine Wirtschaft, lernt nie dazu",
   [Difficulty.Normal]: "Verteidigt seine Basis, baut Türme",
   [Difficulty.Hard]: "Reagiert sofort, kontert dich — und sieht durch den Nebel",
+};
+
+const OPPONENT_NOTES: Readonly<Record<number, string>> = {
+  1: "Ein Duell",
+  2: "Jeder gegen jeden — wer zuerst angreift, ist danach der Schwächste",
+  3: "Jeder gegen jeden, vier Basen auf einer Karte",
 };
 
 const SIZE_NOTES: Readonly<Record<number, string>> = {
@@ -151,6 +158,19 @@ export function showSetupScreen(
         chosen.difficulty,
         (value) => {
           chosen = { ...chosen, difficulty: value };
+        },
+      ),
+    );
+
+    panel.append(group("Anzahl Gegner"));
+    panel.append(
+      choices(
+        OPPONENT_COUNTS,
+        (value) => (value === 1 ? "Ein Gegner" : `${value} Gegner`),
+        (value) => OPPONENT_NOTES[value] ?? "",
+        chosen.opponents,
+        (value) => {
+          chosen = { ...chosen, opponents: value };
         },
       ),
     );

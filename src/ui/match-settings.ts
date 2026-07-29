@@ -39,7 +39,12 @@ export interface MatchSettings {
   readonly difficulty: DifficultyId;
   readonly size: number;
   readonly biome: BiomeId;
+  /** How many bots. Everyone plays against everyone; nobody is allied. */
+  readonly opponents: number;
 }
+
+/** Bots a match can be set up with, fewest first. */
+export const OPPONENT_COUNTS: readonly number[] = [1, 2, 3];
 
 /** Largest seed the game hands out. Six digits: readable, and easy to type. */
 const MAX_SEED = 999_999;
@@ -51,6 +56,7 @@ export const DEFAULT_SETTINGS: Omit<MatchSettings, "seed"> & { readonly seed: nu
   difficulty: Difficulty.Easy,
   size: 64,
   biome: Biome.Grassland,
+  opponents: 1,
 };
 
 const DIFFICULTY_BY_NAME: Readonly<Record<string, DifficultyId>> = {
@@ -133,7 +139,18 @@ export function parseSettings(query: URLSearchParams): MatchSettings {
     difficulty: DIFFICULTY_BY_NAME[difficultyName] ?? DEFAULT_SETTINGS.difficulty,
     size: sizeValue === null ? DEFAULT_SETTINGS.size : snapSize(sizeValue),
     biome: BIOME_BY_SLUG[biomeName] ?? DEFAULT_SETTINGS.biome,
+    opponents: readOpponents(query.get("gegnerzahl")),
   };
+}
+
+/** Bots asked for, clamped to what the map can seat. */
+function readOpponents(raw: string | null): number {
+  const text = (raw ?? "").trim();
+  if (!/^\d+$/.test(text)) return DEFAULT_SETTINGS.opponents;
+
+  const first = OPPONENT_COUNTS[0]!;
+  const last = OPPONENT_COUNTS[OPPONENT_COUNTS.length - 1]!;
+  return Math.min(last, Math.max(first, Number(text)));
 }
 
 /** What this biome is called, for the setup screen and the status readout. */
@@ -148,5 +165,6 @@ export function settingsToQuery(settings: MatchSettings): string {
   query.set("gegner", DIFFICULTY_SLUGS[settings.difficulty]);
   query.set("groesse", String(settings.size));
   query.set("gelaende", BIOME_SLUGS[settings.biome]);
+  query.set("gegnerzahl", String(settings.opponents));
   return query.toString();
 }

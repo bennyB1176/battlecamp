@@ -13,13 +13,13 @@ import { statsFor } from "../src/sim/stats.js";
 import { createWorld, TICKS_PER_SECOND, type World } from "../src/sim/world.js";
 import { matchResult, Outcome } from "../src/ui/result-data.js";
 
-function world(): World {
+function world2(): World {
   return createWorld({ seed: 3, width: 32, height: 32, startingUnits: 0 });
 }
 
 describe("the verdict", () => {
   it("calls a win a win, from the local player's chair", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
 
@@ -28,7 +28,7 @@ describe("the verdict", () => {
   });
 
   it("calls a draw a draw for everybody", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = null;
 
@@ -37,11 +37,11 @@ describe("the verdict", () => {
   });
 
   it("says nothing while the match is still running", () => {
-    expect(matchResult(world(), 0)).toBeNull();
+    expect(matchResult(world2(), 0)).toBeNull();
   });
 
   it("puts the result in words, not just in a code", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
 
@@ -52,7 +52,7 @@ describe("the verdict", () => {
 
 describe("how long it took", () => {
   it("reports the match length as minutes and seconds", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
     w.tick = TICKS_PER_SECOND * (3 * 60 + 7);
@@ -63,7 +63,7 @@ describe("how long it took", () => {
 
 describe("the columns", () => {
   it("lists the local player first, whoever that is", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 1;
 
@@ -73,7 +73,7 @@ describe("the columns", () => {
   });
 
   it("names the sides in a way a player can tell apart", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
 
@@ -82,7 +82,7 @@ describe("the columns", () => {
   });
 
   it("takes every figure straight from the tally", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
     const stats = statsFor(w, 0);
@@ -102,7 +102,7 @@ describe("the columns", () => {
   });
 
   it("breaks the haul down by resource, using the resource table's names", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
     statsFor(w, 0).gathered[Resource.Ore] = 55;
@@ -113,7 +113,7 @@ describe("the columns", () => {
   });
 
   it("leaves out resources nobody dug up, so the column stays readable", () => {
-    const w = world();
+    const w = world2();
     w.matchOver = true;
     w.winner = 0;
     statsFor(w, 0).gathered[Resource.Wood] = 10;
@@ -121,5 +121,43 @@ describe("the columns", () => {
     const haul = matchResult(w, 0)!.sides[0]!.haul;
     expect(haul).toHaveLength(1);
     expect(haul[0]!.kind).toBe(Resource.Wood);
+  });
+});
+
+describe("wording for more than one opponent", () => {
+  function fourWay(winner: number | null): World {
+    const w = createWorld({ seed: 3, width: 32, height: 32, startingUnits: 0, playerCount: 4 });
+    w.matchOver = true;
+    w.winner = winner;
+    return w;
+  }
+
+  it("stops calling three opponents 'der Gegner'", () => {
+    // Right for a duel, quietly false for a free-for-all — the kind of thing
+    // nobody reports and everybody notices.
+    const detail = matchResult(fourWay(0), 0)!.detail;
+    expect(detail).not.toContain("Der Gegner");
+    expect(detail).toContain("3 Gegner");
+  });
+
+  it("keeps the duel wording when there is only one", () => {
+    const world = world2();
+    world.matchOver = true;
+    world.winner = 0;
+    expect(matchResult(world, 0)!.detail).toContain("Der Gegner");
+  });
+
+  it("gives every side its own column and its own name", () => {
+    const sides = matchResult(fourWay(0), 0)!.sides;
+    expect(sides).toHaveLength(4);
+    expect(sides.map((side) => side.name)).toEqual(["Du", "Gegner 1", "Gegner 2", "Gegner 3"]);
+  });
+
+  it("puts the reader first however many sides there are", () => {
+    expect(matchResult(fourWay(2), 2)!.sides[0]!.playerId).toBe(2);
+  });
+
+  it("calls a four-way wipeout a draw for everybody", () => {
+    expect(matchResult(fourWay(null), 1)!.detail).toContain("Alle Seiten");
   });
 });

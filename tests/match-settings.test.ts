@@ -19,6 +19,7 @@ import { Biome, BIOME_LIST } from "../src/content/biomes.js";
 import {
   DEFAULT_SETTINGS,
   MAP_SIZES,
+  OPPONENT_COUNTS,
   parseSettings,
   randomSeed,
   settingsToQuery,
@@ -31,12 +32,15 @@ function query(text: string): URLSearchParams {
 
 describe("reading settings from a link", () => {
   it("reads a full set", () => {
-    const settings = parseSettings(query("seed=4711&gegner=schwer&groesse=80&gelaende=wueste"));
+    const settings = parseSettings(
+      query("seed=4711&gegner=schwer&groesse=80&gelaende=wueste&gegnerzahl=3"),
+    );
     expect(settings).toEqual({
       seed: 4711,
       difficulty: Difficulty.Hard,
       size: 80,
       biome: Biome.Desert,
+      opponents: 3,
     });
   });
 
@@ -91,6 +95,7 @@ describe("writing settings back into a link", () => {
       difficulty: Difficulty.Normal,
       size: 48,
       biome: Biome.Tundra,
+      opponents: 2,
     };
     expect(parseSettings(query(settingsToQuery(settings)))).toEqual(settings);
   });
@@ -102,6 +107,7 @@ describe("writing settings back into a link", () => {
         difficulty: Difficulty.Easy,
         size: size.tiles,
         biome: Biome.Grassland,
+        opponents: 1,
       };
       expect(parseSettings(query(settingsToQuery(settings))).size).toBe(size.tiles);
     }
@@ -113,6 +119,7 @@ describe("writing settings back into a link", () => {
       difficulty: Difficulty.Easy,
       size: 64,
       biome: Biome.Badlands,
+      opponents: 3,
     });
     expect(text).toContain("seed=481203");
   });
@@ -135,19 +142,55 @@ describe("rolling a seed", () => {
 describe("the terrain setting", () => {
   it("round-trips every biome", () => {
     for (const biome of BIOME_LIST) {
-      const settings: MatchSettings = { seed: 9, difficulty: Difficulty.Easy, size: 64, biome };
+      const settings: MatchSettings = { seed: 9, difficulty: Difficulty.Easy, size: 64, biome, opponents: 1 };
       expect(parseSettings(query(settingsToQuery(settings))).biome).toBe(biome);
     }
   });
 
   it("writes a slug a person can read, not a number", () => {
-    const text = settingsToQuery({ seed: 9, difficulty: Difficulty.Easy, size: 64, biome: Biome.Tundra });
+    const text = settingsToQuery({
+      seed: 9,
+      difficulty: Difficulty.Easy,
+      size: 64,
+      biome: Biome.Tundra,
+      opponents: 1,
+    });
     expect(text).toContain("gelaende=tundra");
   });
 
   it("falls back to grassland for a terrain it does not know", () => {
     expect(parseSettings(query("gelaende=dschungel")).biome).toBe(Biome.Grassland);
     expect(parseSettings(query("")).biome).toBe(Biome.Grassland);
+  });
+});
+
+describe("how many opponents", () => {
+  it("round-trips every offered count", () => {
+    for (const opponents of OPPONENT_COUNTS) {
+      const settings: MatchSettings = {
+        seed: 9,
+        difficulty: Difficulty.Easy,
+        size: 64,
+        biome: Biome.Grassland,
+        opponents,
+      };
+      expect(parseSettings(query(settingsToQuery(settings))).opponents).toBe(opponents);
+    }
+  });
+
+  it("clamps a hand-edited count to what the map can seat", () => {
+    // Four bases is what the anchor table has room for, so three opponents is
+    // the ceiling — and a link asking for nine has to start a game anyway.
+    expect(parseSettings(query("gegnerzahl=9")).opponents).toBe(
+      OPPONENT_COUNTS[OPPONENT_COUNTS.length - 1],
+    );
+    expect(parseSettings(query("gegnerzahl=0")).opponents).toBe(OPPONENT_COUNTS[0]);
+    expect(parseSettings(query("gegnerzahl=hallo")).opponents).toBe(DEFAULT_SETTINGS.opponents);
+  });
+
+  it("defaults to a duel", () => {
+    // The setting nearly everybody plays, and the one every balance run used.
+    expect(parseSettings(query("")).opponents).toBe(1);
   });
 });
 

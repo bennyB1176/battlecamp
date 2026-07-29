@@ -58,20 +58,33 @@ export interface MatchResult {
   readonly sides: readonly SideResult[];
 }
 
-const HEADLINES: Readonly<Record<OutcomeId, { headline: string; detail: string }>> = {
-  [Outcome.Won]: {
-    headline: "Sieg",
-    detail: "Der Gegner hat nichts mehr, womit er wieder aufbauen könnte.",
-  },
-  [Outcome.Lost]: {
-    headline: "Niederlage",
-    detail: "Kein Gebäude und kein Arbeiter mehr — von hier führt kein Weg zurück.",
-  },
-  [Outcome.Draw]: {
-    headline: "Unentschieden",
-    detail: "Beide Seiten sind ausgelöscht.",
-  },
+const HEADLINES: Readonly<Record<OutcomeId, string>> = {
+  [Outcome.Won]: "Sieg",
+  [Outcome.Lost]: "Niederlage",
+  [Outcome.Draw]: "Unentschieden",
 };
+
+/**
+ * The line under the headline, which has to know how many sides were playing.
+ *
+ * "Der Gegner hat nichts mehr" reads fine in a duel and is simply wrong in a
+ * free-for-all against three. Text that is right for the common case and quietly
+ * false for the others is the kind of thing nobody reports and everybody notices.
+ */
+function detailFor(outcome: OutcomeId, opponents: number): string {
+  const many = opponents > 1;
+
+  switch (outcome) {
+    case Outcome.Won:
+      return many
+        ? `Alle ${opponents} Gegner haben nichts mehr, womit sie wieder aufbauen könnten.`
+        : "Der Gegner hat nichts mehr, womit er wieder aufbauen könnte.";
+    case Outcome.Lost:
+      return "Kein Gebäude und kein Arbeiter mehr — von hier führt kein Weg zurück.";
+    default:
+      return many ? "Alle Seiten sind ausgelöscht." : "Beide Seiten sind ausgelöscht.";
+  }
+}
 
 /** "Du" for whoever is reading; the rest are numbered only if there are several. */
 function sideName(playerId: PlayerId, localPlayer: PlayerId, opponents: number): string {
@@ -126,8 +139,8 @@ export function matchResult(world: World, localPlayer: PlayerId): MatchResult | 
 
   return {
     outcome,
-    headline: HEADLINES[outcome].headline,
-    detail: HEADLINES[outcome].detail,
+    headline: HEADLINES[outcome],
+    detail: detailFor(outcome, opponents),
     duration: formatDuration(world.tick),
     sides,
   };
