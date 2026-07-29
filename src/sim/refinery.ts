@@ -44,9 +44,15 @@ function stepRefinery(world: World, building: Entity): void {
   // earns one a tick instead of two. Whole numbers keep the world state free of
   // floating point, which is the whole point of the fixed-point arithmetic.
   //
-  // Nothing to work with: idle, rather than going into debt or banking progress
-  // it has not earned. A refinery with no input is a building waiting for work.
-  if (player.resources[recipe.input] < recipe.inputAmount) return;
+  // Nothing spare to work with: idle, rather than going into debt or banking
+  // progress it has not earned. A refinery with no input is a building waiting
+  // for work.
+  //
+  // "Spare" is the load-bearing word. A refinery that eats into the working
+  // capital is a hole in the raw economy — the sawmill takes thirty wood every
+  // twelve seconds forever, roughly one worker's whole output — and the player
+  // watches their wood sit at zero without ever being told why.
+  if (player.resources[recipe.input] - recipe.reserve < recipe.inputAmount) return;
 
   state.progress += workRate(world, building);
   if (state.progress < recipe.ticks * WORK_RATE_DENOMINATOR) return;

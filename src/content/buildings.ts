@@ -83,6 +83,19 @@ export interface Recipe {
   readonly outputAmount: number;
   /** Ticks per batch. */
   readonly ticks: number;
+  /**
+   * Input the refinery will not touch: it converts only the surplus above this.
+   *
+   * Without it a refinery is a hole in the raw economy. The sawmill takes
+   * thirty wood every twelve seconds and never stops — about one worker's
+   * entire output, permanently — so a player who builds one watches their wood
+   * go to zero and stay there. That was invisible while planks bought nothing,
+   * because nobody had a reason to build the thing.
+   *
+   * A reserve says what a refinery actually is: a way to turn spare raw
+   * material into something better, not a standing order that outranks eating.
+   */
+  readonly reserve: number;
 }
 
 export interface BuildingDef {
@@ -240,6 +253,10 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
       output: Resource.Planks,
       outputAmount: 10,
       ticks: 120,
+      // Roughly a barracks' worth of wood left untouched: enough that a
+      // sawmill never competes with the buildings and units that keep a match
+      // going, and low enough that a working economy still feeds it.
+      reserve: 150,
     },
     glyph: BuildingGlyph.Axe,
   },
@@ -268,7 +285,12 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     maxHp: 440,
     // Cheaper than the two refineries it typically serves, or nobody would ever
     // choose it over simply building a second smelter.
-    cost: { [Resource.Wood]: 100, [Resource.Stone]: 90 },
+    // The one thing in the game that costs both refined goods, and deliberately
+    // so: power is a mid-game concern — you only need it once a base outgrows
+    // its own yard — so gating it behind both refineries asks for exactly the
+    // economy a player has by then. It also gives steel a second buyer, which
+    // keeps it a resource rather than a key that opens one door.
+    cost: { [Resource.Wood]: 60, [Resource.Stone]: 90, [Resource.Planks]: 25, [Resource.Steel]: 20 },
     buildWork: 210,
     buildRadius: 3,
     sight: fromTiles(6),
@@ -285,7 +307,11 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
     name: "Schmelze",
     footprint: 2,
     maxHp: 520,
-    cost: { [Resource.Wood]: 120, [Resource.Stone]: 120 },
+    // Paid partly in planks: this is the second rung of the chain, and it is
+    // what finally gives the sawmill a reason to exist. Raw wood alone would
+    // leave planks with no buyer at all — which is exactly the state this
+    // building shipped in.
+    cost: { [Resource.Wood]: 70, [Resource.Stone]: 120, [Resource.Planks]: 30 },
     buildWork: 240,
     buildRadius: 3,
     sight: fromTiles(5),
@@ -301,6 +327,10 @@ export const BUILDING_DEFS: Readonly<Record<BuildingTypeId, BuildingDef>> = {
       output: Resource.Steel,
       outputAmount: 10,
       ticks: 150,
+      // Lower than the sawmill's, because ore buys far less: outside the
+      // smelter it pays for exactly one unit type, so holding a large float of
+      // it back would just be hoarding.
+      reserve: 60,
     },
     glyph: BuildingGlyph.Anvil,
   },
