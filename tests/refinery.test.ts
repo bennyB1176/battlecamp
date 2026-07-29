@@ -94,7 +94,8 @@ describe("the sawmill", () => {
     expect(world.players[0]!.resources[Resource.Planks]).toBe(0);
     expect(world.players[0]!.resources[Resource.Wood]).toBe(0);
 
-    world.players[0]!.resources[Resource.Wood] = recipe.inputAmount;
+    // Above the reserve, because a refinery only ever converts the surplus.
+    world.players[0]!.resources[Resource.Wood] = recipe.reserve + recipe.inputAmount;
     for (let tick = 0; tick < recipe.ticks; tick++) tickWorld(world);
     expect(world.players[0]!.resources[Resource.Planks]).toBe(recipe.outputAmount);
   });
@@ -173,5 +174,51 @@ describe("what the chains are for", () => {
       expect(cost[Resource.Planks] ?? 0, `${buildingDef(typeId).name} needs planks to exist`).toBe(0);
       expect(cost[Resource.Steel] ?? 0, `${buildingDef(typeId).name} needs steel to exist`).toBe(0);
     }
+  });
+});
+
+/** A powered sawmill on a blank board, so only the reserve is under test. */
+function millArena(): { world: World; mill: ReturnType<typeof place> } {
+  const world = blankWorld();
+  powerAll(world);
+  const mill = place(world, BuildingType.Sawmill, 20, 20);
+  return { world, mill };
+}
+
+describe("the reserve", () => {
+  it("leaves the working capital alone", () => {
+    // The complaint this answers: build a sawmill and your wood goes to zero
+    // and stays there. A refinery converts the *surplus*; it does not outrank
+    // the buildings and units that keep a match going.
+    const { world, mill } = millArena();
+    const recipe = buildingDef(BuildingType.Sawmill).refines!;
+
+    world.players[0]!.resources[Resource.Wood] = recipe.reserve;
+    for (let i = 0; i < recipe.ticks * 3; i++) tickWorld(world);
+
+    expect(world.players[0]!.resources[Resource.Wood]).toBe(recipe.reserve);
+    expect(world.players[0]!.resources[Resource.Planks]).toBe(0);
+    expect(mill.refinery!.progress).toBe(0);
+  });
+
+  it("works the moment there is more than the reserve", () => {
+    const { world } = millArena();
+    const recipe = buildingDef(BuildingType.Sawmill).refines!;
+
+    world.players[0]!.resources[Resource.Wood] = recipe.reserve + recipe.inputAmount;
+    for (let i = 0; i < recipe.ticks * 2; i++) tickWorld(world);
+
+    expect(world.players[0]!.resources[Resource.Planks]).toBeGreaterThan(0);
+    expect(world.players[0]!.resources[Resource.Wood]).toBe(recipe.reserve);
+  });
+
+  it("never digs below the reserve, however long it runs", () => {
+    const { world } = millArena();
+    const recipe = buildingDef(BuildingType.Sawmill).refines!;
+
+    world.players[0]!.resources[Resource.Wood] = recipe.reserve + recipe.inputAmount * 5;
+    for (let i = 0; i < recipe.ticks * 20; i++) tickWorld(world);
+
+    expect(world.players[0]!.resources[Resource.Wood]).toBeGreaterThanOrEqual(recipe.reserve);
   });
 });

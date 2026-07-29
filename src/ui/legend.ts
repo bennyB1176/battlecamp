@@ -168,9 +168,16 @@ function buildContent(): DocumentFragment {
         "ausgeräumt hat, muss dorthin expandieren, wo auch andere hinwollen.",
     ),
     paragraph(
-      "Bretter und Stahl liegen nicht im Boden: dafür braucht es ein Sägewerk und eine Schmelze, " +
-        "die laufend aus dem Vorrat veredeln. Der Panzerwagen hängt daran — wer nie eine Schmelze " +
-        "gebaut hat, kann ihn nicht aufstellen, wie viel rohes Erz auch herumliegt.",
+      "Bretter und Stahl liegen nicht im Boden: dafür braucht es ein Sägewerk und eine Schmelze. " +
+        "Bretter bezahlen die Schmelze und das Kraftwerk, Stahl den Panzerwagen und ebenfalls das " +
+        "Kraftwerk — wer nie ein Sägewerk gebaut hat, kommt an keines von beidem heran, wie viel " +
+        "rohes Holz auch herumliegt.",
+    ),
+    paragraph(
+      "Eine Veredelung rührt nur den Überschuss an: das Sägewerk lässt einen Grundstock Holz " +
+        "liegen und verarbeitet erst, was darüber hinausgeht. Sonst wäre es ein Loch in der " +
+        "Wirtschaft — es nimmt sich alle zwölf Sekunden Holz, ungefähr die Ausbeute eines " +
+        "Arbeiters, und würde sonst nie damit aufhören.",
     ),
   );
 

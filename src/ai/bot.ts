@@ -432,11 +432,16 @@ function runInfrastructure(
 
   if (!has(BuildingType.Barracks)) wanted.push(BuildingType.Barracks);
 
+  // The sawmill comes before the smelter, because the smelter is now paid for
+  // in planks. Without this the bot would queue a building it can never afford
+  // and quietly stop developing at the barracks.
+  if (has(BuildingType.Barracks) && !has(BuildingType.Sawmill)) wanted.push(BuildingType.Sawmill);
+
   // A smelter once there is a barracks to spend the steel at. Without one the
   // whole refining chain is dead content in every bot match: thousands of ore
   // banked that can never become anything, and the heaviest unit in the game
   // out of reach for the entire twenty minutes.
-  if (has(BuildingType.Barracks) && !has(BuildingType.Smelter)) wanted.push(BuildingType.Smelter);
+  if (has(BuildingType.Sawmill) && !has(BuildingType.Smelter)) wanted.push(BuildingType.Smelter);
 
   // A plant only when something of its own is actually running cold. Building
   // one on principle would be wasted resources on a base that never left its

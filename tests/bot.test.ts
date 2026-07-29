@@ -25,6 +25,7 @@ import { createGrid, setTerrain, Terrain } from "../src/sim/grid.js";
 import { Resource, stockDeposits } from "../src/sim/resources.js";
 import { isStarving } from "../src/sim/food.js";
 import { isPowered } from "../src/sim/power.js";
+import { statsFor, totalGathered } from "../src/sim/stats.js";
 import { createWorld, tickWorld, type World } from "../src/sim/world.js";
 
 const BOT_PLAYER = 1;
@@ -134,13 +135,21 @@ describe("economy layer", () => {
     expect(working.length).toBeGreaterThan(0);
   });
 
-  it("actually banks resources over time", () => {
+  it("actually earns resources over time", () => {
+    // Measured as what the workers brought home, not as what is left in the
+    // account. The account version of this test failed the day the bot got a
+    // sawmill in its build order — not because the economy had stopped, but
+    // because a hard bot spends every scrap it earns, which is the correct
+    // behaviour. A test that breaks when the bot gets *better* is measuring the
+    // wrong thing.
     const world = botWorld();
     world.players[BOT_PLAYER]!.resources[Resource.Wood] = 0;
     const bot = createBot(BOT_PLAYER, Difficulty.Hard, 1);
 
     play(world, bot, 900);
-    expect(world.players[BOT_PLAYER]!.resources[Resource.Wood]).toBeGreaterThan(0);
+
+    expect(statsFor(world, BOT_PLAYER).gathered[Resource.Wood]).toBeGreaterThan(0);
+    expect(totalGathered(statsFor(world, BOT_PLAYER))).toBeGreaterThan(0);
   });
 
   it("trains more workers up to its target", () => {

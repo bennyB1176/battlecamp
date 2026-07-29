@@ -94,7 +94,11 @@ function describeRecipe(recipe: Recipe): string {
   const seconds = (recipe.ticks / TICKS_PER_SECOND).toFixed(0);
   return (
     `${recipe.inputAmount} ${RESOURCE_NAMES[recipe.input]} → ` +
-    `${recipe.outputAmount} ${RESOURCE_NAMES[recipe.output]}, alle ${seconds} s`
+    `${recipe.outputAmount} ${RESOURCE_NAMES[recipe.output]}, alle ${seconds} s ` +
+    // The reserve belongs in the same line as the recipe: it is the difference
+    // between "this eats my wood" and "this eats my spare wood", and a player
+    // who does not know it will read a quiet sawmill as a broken one.
+    `(erst ab ${recipe.reserve} ${RESOURCE_NAMES[recipe.input]})`
   );
 }
 
