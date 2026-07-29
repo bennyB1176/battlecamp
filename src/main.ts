@@ -123,6 +123,9 @@ function start(settings: MatchSettings, resumed: World | null = null): void {
       width: settings.size,
       height: settings.size,
       biome: settings.biome,
+      // The human plus its opponents. Free-for-all: the bots fight each other
+      // as readily as they fight the player.
+      playerCount: settings.opponents + 1,
     });
   const camera: Camera = createCamera(world.grid.width, world.grid.height);
   const renderer = createRenderer(canvas, world);
@@ -708,7 +711,8 @@ function start(settings: MatchSettings, resumed: World | null = null): void {
       // Opponent and map number are in here so a player can always tell what
       // they are actually playing — and read the seed back out to share it.
       hud.setStats(
-        `Gegner: ${DIFFICULTY_NAMES[difficulty]} · ${biomeName(settings.biome)} ${settings.seed} ` +
+        `Gegner: ${settings.opponents}× ${DIFFICULTY_NAMES[difficulty]} · ` +
+          `${biomeName(settings.biome)} ${settings.seed} ` +
           `(${settings.size}) · ` +
           `${fps} fps · ${world.entities.list.length} Obj. · ` +
           `Sim ${lastTickMs.toFixed(2)} ms · Frame ${renderer.lastFrameMs.toFixed(2)} ms`,

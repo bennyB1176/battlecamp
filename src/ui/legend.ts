@@ -81,6 +81,11 @@ function buildContent(): DocumentFragment {
       "Es entscheidet die Zusammensetzung, nicht die Menge: jeder Einheitentyp hat einen Konter. " +
         "Deshalb lohnt es sich, erst zu sehen, was der Gegner baut.",
     ),
+    paragraph(
+      "Bei mehr als einem Gegner spielt jeder gegen jeden — auch die Gegner gegeneinander. " +
+        "Wer zuerst angreift, gewinnt vielleicht diesen Kampf und steht danach als Schwächster " +
+        "zwischen zwei unversehrten Basen. Zusehen ist eine Eröffnung.",
+    ),
   );
 
   fragment.append(
