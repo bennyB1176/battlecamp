@@ -86,7 +86,26 @@ function choices<T>(
  * means — which is what lets the same screen serve both the opening menu and
  * the "another one" button on the result screen.
  */
-export function showSetupScreen(initial: MatchSettings): Promise<MatchSettings> {
+export interface SetupChoice {
+  readonly kind: "new";
+  readonly settings: MatchSettings;
+}
+
+export interface ResumeChoice {
+  readonly kind: "resume";
+}
+
+/**
+ * Show the setup screen and resolve once the player has decided.
+ *
+ * `onResume` is offered only when there is actually something to go back to.
+ * A permanently visible "continue" that sometimes does nothing is worse than
+ * none: the player learns to distrust it.
+ */
+export function showSetupScreen(
+  initial: MatchSettings,
+  resume?: { readonly clockText: string },
+): Promise<SetupChoice | ResumeChoice> {
   return new Promise((resolve) => {
     let chosen: MatchSettings = { ...initial };
 
@@ -106,6 +125,22 @@ export function showSetupScreen(initial: MatchSettings): Promise<MatchSettings> 
       "Basis aufbauen, Rohstoffe abbauen, Armee aufstellen, Gegner ausschalten. Alles unter Nebel — du siehst nur, wohin du schaust.";
 
     panel.append(title, blurb);
+
+    if (resume) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = "setup-resume";
+      const label = document.createElement("strong");
+      label.textContent = "Weiterspielen";
+      const detail = document.createElement("span");
+      detail.textContent = `Gespeichertes Spiel bei ${resume.clockText}`;
+      button.append(label, detail);
+      button.addEventListener("click", () => {
+        overlay.remove();
+        resolve({ kind: "resume" });
+      });
+      panel.append(button);
+    }
 
     panel.append(group("Gegner"));
     panel.append(
@@ -193,13 +228,13 @@ export function showSetupScreen(initial: MatchSettings): Promise<MatchSettings> 
     const start = document.createElement("button");
     start.type = "button";
     start.id = "setup-start";
-    start.textContent = "Spiel starten";
+    start.textContent = resume ? "Neues Spiel starten" : "Spiel starten";
     panel.append(start);
 
     start.addEventListener("click", () => {
       const settings: MatchSettings = { ...chosen, seed: readSeed() };
       overlay.remove();
-      resolve(settings);
+      resolve({ kind: "new", settings });
     });
 
     overlay.append(panel);

@@ -47,6 +47,7 @@ import { nextSpeed, SPEEDS } from "./ui/speed.js";
 import { createLegend } from "./ui/legend.js";
 import { biomeName, parseSettings, randomSeed, type MatchSettings } from "./ui/match-settings.js";
 import { applySettings, showSetupScreen } from "./ui/setup-screen.js";
+import { clearMatch, loadMatch, saveMatch } from "./ui/storage.js";
 import { attachMinimap } from "./ui/minimap-panel.js";
 import { createResultScreen } from "./ui/result-screen.js";
 
@@ -98,18 +99,31 @@ function placementMessage(error: PlacementErrorKind | undefined): string {
   }
 }
 
-function start(settings: MatchSettings): void {
+/**
+ * How often a running match is written down.
+ *
+ * Every few seconds rather than every tick: a save is a full copy of the world,
+ * and the point is to lose a phone call's worth of play at most, not to make
+ * the loop pay for insurance sixty times a second. The real safety net is the
+ * write on the way out below — this is what covers the times the browser never
+ * gets to tell us.
+ */
+const AUTOSAVE_INTERVAL_MS = 10_000;
+
+function start(settings: MatchSettings, resumed: World | null = null): void {
   const canvas = document.getElementById("game");
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error("Canvas #game is missing from index.html");
   }
 
-  const world: World = createWorld({
-    seed: settings.seed,
-    width: settings.size,
-    height: settings.size,
-    biome: settings.biome,
-  });
+  const world: World =
+    resumed ??
+    createWorld({
+      seed: settings.seed,
+      width: settings.size,
+      height: settings.size,
+      biome: settings.biome,
+    });
   const camera: Camera = createCamera(world.grid.width, world.grid.height);
   const renderer = createRenderer(canvas, world);
 
@@ -157,7 +171,9 @@ function start(settings: MatchSettings): void {
   // fresh map: after twenty minutes the player has an opinion about the size
   // and the opponent, and this is the moment they want to act on it.
   const resultScreen = createResultScreen(LOCAL_PLAYER, () => {
-    void showSetupScreen({ ...settings, seed: randomSeed() }).then(applySettings);
+    void showSetupScreen({ ...settings, seed: randomSeed() }).then((choice) => {
+      if (choice.kind === "new") applySettings(choice.settings);
+    });
   });
 
   // The overview. Fog made it necessary: with it, zooming out shows a mostly
@@ -559,6 +575,31 @@ function start(settings: MatchSettings): void {
     };
   }
 
+  /**
+   * Write the match down, unless it is over.
+   *
+   * A finished match is cleared instead: offering to continue a game that has
+   * already been won is a button that can only disappoint.
+   */
+  let lastSaveTime = performance.now();
+  const persist = (): void => {
+    if (world.matchOver) {
+      clearMatch();
+      return;
+    }
+    saveMatch(world, settings);
+    lastSaveTime = performance.now();
+  };
+
+  // The important one. `pagehide` is the event that actually fires on a phone
+  // when a call comes in or the browser reclaims the tab; `visibilitychange`
+  // covers switching apps. `beforeunload` is unreliable on mobile and is not
+  // relied on here.
+  window.addEventListener("pagehide", persist);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") persist();
+  });
+
   let previousFrameTime = performance.now();
   let accumulator = 0;
   let framesSinceReport = 0;
@@ -655,6 +696,8 @@ function start(settings: MatchSettings): void {
       );
     }
 
+    if (now - lastSaveTime >= AUTOSAVE_INTERVAL_MS) persist();
+
     framesSinceReport++;
     if (now - fpsWindowStart >= 500) {
       fps = Math.round((framesSinceReport * 1000) / (now - fpsWindowStart));
@@ -693,8 +736,45 @@ async function boot(): Promise<void> {
     return;
   }
 
-  applySettings(await showSetupScreen(settings));
+  // Read up front rather than behind the button: whether there is anything to
+  // go back to decides what the screen offers, and a save that turns out to be
+  // unreadable should quietly not be offered at all.
+  const saved = loadMatch();
+  const choice = await showSetupScreen(settings, saved ? { clockText: formatClock(saved.tick) } : undefined);
+
+  if (choice.kind === "resume" && saved) {
+    start(saved.settings, saved.world);
+    return;
+  }
+
+  if (choice.kind === "new") applySettings(choice.settings);
 }
+
+/**
+ * Register the offline worker.
+ *
+ * Production only. In development a service worker sits between the page and
+ * Vite's live reload and serves yesterday's module — which looks exactly like
+ * a change that did not take, and costs an afternoon before anyone suspects
+ * the cache.
+ *
+ * Failure is swallowed: no service worker means a game that needs the network,
+ * which is what it needed before this existed.
+ */
+function registerOfflineWorker(): void {
+  if (!import.meta.env.PROD) return;
+  if (!("serviceWorker" in navigator)) return;
+
+  window.addEventListener("load", () => {
+    // Relative, because the build is deployed under a sub-path on Pages and an
+    // absolute "/sw.js" would ask for it at the domain root.
+    void navigator.serviceWorker.register("./sw.js").catch(() => {
+      // Offline support is a bonus, never a precondition for playing.
+    });
+  });
+}
+
+registerOfflineWorker();
 
 // The bundle may be inlined ahead of the markup (single-file builds), so wait
 // for the DOM rather than assuming the canvas already exists.

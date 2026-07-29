@@ -110,6 +110,14 @@ const STARTING_STOCK = {
 
 export interface World {
   readonly seed: number;
+  /**
+   * Which kind of place this is.
+   *
+   * The simulation never reads it — the biome's work is done the moment the map
+   * exists. It is carried anyway because everything *around* the simulation
+   * wants it: the status readout, a saved game, and any future rematch button.
+   */
+  readonly biome: BiomeId;
   /** Ticks elapsed since the start of the match. The sim's only clock. */
   tick: number;
   readonly rng: Rng;
@@ -166,6 +174,7 @@ export function createWorld(config: Partial<WorldConfig> = {}): World {
 
   const world: World = {
     seed,
+    biome,
     tick: 0,
     rng: createRng((seed ^ 0x9e3779b9) >>> 0),
     grid,
